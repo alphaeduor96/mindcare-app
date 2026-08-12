@@ -1,7 +1,8 @@
-import { publicAnonKey, supabaseFunctionsBaseUrl, supabaseUrl } from "../../utils/supabase/info";
+import { copomexToken, googleMapsApiKey, publicAnonKey, supabaseFunctionsBaseUrl, supabaseUrl } from "../../utils/supabase/info";
 
 export { publicAnonKey, supabaseUrl };
 export { supabaseFunctionsBaseUrl };
+export { copomexToken, googleMapsApiKey };
 
 export const API_BASE = `${supabaseFunctionsBaseUrl}/make-server-0e77298f`;
 export const REST_BASE = `${supabaseUrl}/rest/v1`;
@@ -17,6 +18,7 @@ export async function supabaseFunction<T>(
   const response = await fetch(`${supabaseFunctionsBaseUrl}/${functionName}`, {
     ...options,
     headers: {
+      apikey: publicAnonKey,
       Authorization: `Bearer ${getAuthToken()}`,
       "Content-Type": "application/json",
       ...options.headers,
@@ -24,13 +26,50 @@ export async function supabaseFunction<T>(
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_error) {
+    data = { message: text };
+  }
 
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `HTTP ${response.status}`);
+    const detail = data?.detail?.message || data?.detail?.error || data?.detail?.name;
+    throw new Error(data?.error || data?.message || detail || `HTTP ${response.status}`);
   }
 
   return data;
+}
+
+export async function sendAppEmail(payload: {
+  type: string;
+  to: string;
+  replyTo?: string;
+  data?: Record<string, any>;
+}) {
+  const candidates = ["app-email", "supabase-functions-deploy-app-email"];
+  let lastError: unknown = null;
+
+  for (const functionName of candidates) {
+    try {
+      return await supabaseFunction<{ ok: boolean; id?: string }>(functionName, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      lastError = error;
+      const message = String(error instanceof Error ? error.message : error).toLowerCase();
+      const canTryNext =
+        message.includes("404") ||
+        message.includes("not found") ||
+        message.includes("load failed") ||
+        message.includes("failed to fetch");
+
+      if (!canTryNext) break;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("No se pudo enviar el correo.");
 }
 
 function clearStoredSession() {
@@ -110,6 +149,35 @@ export async function supabaseRest<T>(
   return response.json();
 }
 
+export async function updateSupabaseAuthPassword(password: string) {
+  const makeRequest = (token: string) => fetch(`${supabaseUrl}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      apikey: publicAnonKey,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ password }),
+  });
+
+  let response = await makeRequest(getAuthToken());
+
+  if (!response.ok) {
+    const error = await response.clone().text();
+    if (response.status === 401 && isExpiredJwtError(error)) {
+      const freshToken = await refreshStoredSession();
+      response = await makeRequest(freshToken);
+    }
+  }
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || "No se pudo actualizar la contraseña.");
+  }
+
+  return response.json();
+}
+
 export async function resolvePsychologistProfileId(idOrUserId?: string) {
   if (!idOrUserId) return null;
 
@@ -118,6 +186,97 @@ export async function resolvePsychologistProfileId(idOrUserId?: string) {
   );
 
   return profiles[0]?.id || null;
+}
+
+export async function ensurePsychologistProfileId(idOrUserId?: string) {
+  const existingProfileId = await resolvePsychologistProfileId(idOrUserId);
+  if (existingProfileId) return existingProfileId;
+
+  const storedUser = localStorage.getItem("mindcare_user");
+  const currentUser = storedUser ? JSON.parse(storedUser) : null;
+  const targetUserId = idOrUserId || currentUser?.id;
+
+  if (!targetUserId || currentUser?.rol !== "psicologo" || targetUserId !== currentUser.id) {
+    return null;
+  }
+
+  let publicUsers = await supabaseRest<Array<{ id: string }>>(
+    `/usuarios?id=eq.${targetUserId}&select=id&limit=1`
+  );
+
+  if (!publicUsers[0]?.id) {
+    if (!currentUser?.email) {
+      throw new Error("Tu cuenta existe en Auth, pero falta crearla en la tabla public.usuarios y no encontré el email en la sesión local.");
+    }
+
+    publicUsers = await supabaseRest<Array<{ id: string }>>(
+      "/usuarios?on_conflict=id&select=id",
+      {
+        method: "POST",
+        headers: { Prefer: "return=representation,resolution=merge-duplicates" },
+        body: JSON.stringify({
+          id: targetUserId,
+          email: String(currentUser.email).toLowerCase(),
+          nombre: currentUser.nombre || currentUser.name?.split(" ")[0] || "Usuario",
+          apellido: currentUser.apellido || currentUser.name?.split(" ").slice(1).join(" ") || "",
+          telefono: currentUser.telefono || currentUser.phone || null,
+          rol: "psicologo",
+          estado: "activo",
+          metadata: {
+            repaired_from_frontend: true,
+            repaired_at: new Date().toISOString(),
+          },
+        }),
+      }
+    ).catch((error) => {
+      throw new Error(`Tu cuenta existe en Auth, pero falta crearla en public.usuarios y Supabase bloqueó la reparación. Ejecuta el SQL 0026. ${error?.message || ""}`);
+    });
+  }
+
+  if (!publicUsers[0]?.id) {
+    throw new Error("Tu cuenta existe en Auth, pero no se pudo crear la fila en public.usuarios.");
+  }
+
+  const createdProfiles = await supabaseRest<Array<{ id: string; usuario_id: string }>>(
+    "/psicologos?on_conflict=usuario_id&select=id,usuario_id",
+    {
+      method: "POST",
+      headers: { Prefer: "return=representation,resolution=merge-duplicates" },
+      body: JSON.stringify({
+        usuario_id: targetUserId,
+        cedula_profesional: `PENDIENTE-${targetUserId}`,
+        especialidades: [],
+        membresia: "independiente_free",
+        modalidades: ["presencial", "virtual"],
+        acepta_nuevos_pacientes: true,
+        estado: "activo",
+      }),
+    }
+  );
+
+  const createdProfileId = createdProfiles[0]?.id || null;
+  if (!createdProfileId) return null;
+
+  const basicPlans = await supabaseRest<Array<{ id: string }>>(
+    "/planes_suscripcion_psicologo?codigo=eq.basico&select=id&limit=1"
+  ).catch(() => []);
+  const basicPlanId = basicPlans[0]?.id;
+
+  if (basicPlanId) {
+    await supabaseRest("/suscripciones_psicologo?on_conflict=psicologo_id&select=id", {
+      method: "POST",
+      headers: { Prefer: "return=representation,resolution=merge-duplicates" },
+      body: JSON.stringify({
+        psicologo_id: createdProfileId,
+        plan_id: basicPlanId,
+        estado: "activa",
+      }),
+    }).catch((error) => {
+      console.warn("No se pudo crear la suscripción básica del psicólogo:", error);
+    });
+  }
+
+  return createdProfileId;
 }
 
 async function request(endpoint: string, options: RequestInit = {}) {

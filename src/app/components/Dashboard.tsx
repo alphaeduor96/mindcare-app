@@ -31,24 +31,24 @@ import { supabaseRest } from "../../services/api";
 
 const statusConfig = {
   confirmada: {
-    label: "Confirmada",
-    color: "bg-[#81C784] text-white",
-    icon: CheckCircle2,
+    label: "Agendada",
+    color: "bg-blue-600 text-white",
+    icon: Calendar,
   },
   agendada: {
     label: "Agendada",
-    color: "bg-primary text-primary-foreground",
+    color: "bg-blue-600 text-white",
     icon: Calendar,
   },
   solicitada: {
-    label: "Pendiente",
-    color: "bg-[#FFB74D] text-white",
-    icon: Clock,
+    label: "Agendada",
+    color: "bg-blue-600 text-white",
+    icon: Calendar,
   },
   completada: {
-    label: "Completada",
-    color: "bg-[#66BB6A] text-white",
-    icon: CheckCircle2,
+    label: "Agendada",
+    color: "bg-blue-600 text-white",
+    icon: Calendar,
   },
   cancelada: {
     label: "Cancelada",
@@ -66,37 +66,37 @@ const tourSteps = [
   {
     target: "[data-tour='stats']",
     title: "Panel de Métricas",
-    content: "Aquí puedes ver un resumen rápido de tus citas del día, pacientes activos, psicólogos disponibles e ingresos mensuales.",
+    content: "Aquí ves un resumen rápido de tus citas de hoy, pacientes activos e ingresos del mes con información conectada a la base de datos.",
     placement: "bottom" as const,
   },
   {
     target: "[data-tour='calendar']",
-    title: "Calendario de Citas",
-    content: "Gestiona tu agenda con vistas mensual y semanal. Programa citas, ve recordatorios automáticos y sincroniza todo en un solo lugar.",
+    title: "Agenda y Citas",
+    content: "Desde Citas puedes trabajar en vista calendario o lista, crear/editar citas, cancelar sin borrar historial y sincronizar con iCal para iOS o Android.",
     placement: "bottom" as const,
   },
   {
     target: "[data-tour='patients']",
     title: "Gestión de Pacientes",
-    content: "Crea expedientes digitales completos con notas privadas, historial de sesiones y búsqueda rápida. Toda la información de tus pacientes organizada.",
+    content: "Crea pacientes, configura su tarifa base, datos fiscales, recordatorios por WhatsApp y consulta saldos, expediente, pagos e historial.",
     placement: "top" as const,
   },
   {
     target: "[data-tour='payments']",
     title: "Control de Pagos",
-    content: "Registra pagos, genera reportes de ingresos y lleva el control total de tu facturación. Visualiza tus ganancias por período.",
+    content: "Registra ingresos, revisa pagos vinculados a citas y consulta saldos a favor o pendientes por paciente.",
     placement: "top" as const,
   },
   {
     target: "[data-tour='notifications']",
-    title: "Recordatorios Automáticos",
-    content: "Sistema inteligente de notificaciones para citas, seguimientos y tareas pendientes. Tus pacientes nunca olvidarán una sesión.",
+    title: "Accesos y pendientes",
+    content: "Desde el panel puedes detectar actividad pendiente y moverte rápido a pacientes, agenda, pagos y reportes.",
     placement: "left" as const,
   },
   {
     target: "[data-tour='reports']",
     title: "Reportes y Análisis",
-    content: "Visualiza estadísticas de tu práctica, tendencias de citas y análisis de crecimiento. Toma decisiones informadas sobre tu consultorio.",
+    content: "Consulta reportes por paciente o resumen mensual: cuánto ha pagado, cuánto debe y el desglose de citas del periodo.",
     placement: "top" as const,
   },
 ];
@@ -350,8 +350,8 @@ export function Dashboard({ currentUser }: DashboardProps) {
       {!loading && !error && !psychologist && (
         <Card className="border-border">
           <CardContent className="p-6 text-muted-foreground">
-            Tu usuario aún no tiene un perfil en la tabla de psicólogos. Crea el registro en
-            <span className="text-foreground"> psicologos</span> vinculado a este usuario para ver métricas reales.
+            Aún no encontramos un perfil profesional vinculado a tu cuenta. Completa el registro de psicólogo
+            para que el panel pueda mostrar tus métricas reales de citas, pacientes y pagos.
           </CardContent>
         </Card>
       )}

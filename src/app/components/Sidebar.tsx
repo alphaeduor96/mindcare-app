@@ -5,20 +5,21 @@ import {
   Building2,
   Calendar,
   DollarSign,
-  BarChart3,
   Settings,
   FileText,
-  Video,
+  BarChart3,
   ChevronRight,
   X,
-  Bell,
   Lightbulb,
   CreditCard,
   Wallet,
   UserPlus,
+  Menu,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
+import mindCarePanelLogo from "../../assets/mindcare-pro-panel-logo.png";
+import mindCarePanelIsotype from "../../assets/mindcare-pro-panel-isotype.png";
 
 interface SidebarProps {
   activeSection: string;
@@ -26,6 +27,8 @@ interface SidebarProps {
   userRole: "admin" | "psicologo" | "psychologist" | "empresa" | "company" | "empleado" | "employee";
   isOpen: boolean;
   onClose: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
   userPlan?: "basico" | "intermedio" | "pro" | "afiliado";
 }
 
@@ -48,19 +51,24 @@ const menuItems: Array<{
   { id: "patients", label: "Mis Pacientes", icon: UserRound, roles: ["psychologist"], dataTour: "patients" },
   { id: "clinical-records", label: "Expedientes", icon: FileText, roles: ["psychologist"] },
   { id: "offices", label: "Consultorios", icon: Building2, roles: ["psychologist"] },
-  // Oculto temporalmente mientras se termina el flujo completo de agenda.
   { id: "appointments", label: "Citas", icon: Calendar, roles: ["psychologist", "employee"], dataTour: "calendar" },
-  { id: "video-sessions", label: "Videollamadas", icon: Video, roles: ["psychologist"] },
   { id: "payments", label: "Mis Pagos", icon: DollarSign, roles: ["psychologist"], dataTour: "payments" },
+  { id: "reports", label: "Reportes", icon: BarChart3, roles: ["psychologist", "company"], dataTour: "reports" },
   { id: "network-payouts", label: "Cortes MindCare", icon: Wallet, roles: ["psychologist"], affiliatedOnly: true },
   { id: "billing", label: "Suscripción", icon: CreditCard, roles: ["psychologist"], controlOnly: true },
-  { id: "notifications", label: "Recordatorios", icon: Bell, roles: ["psychologist"], dataTour: "notifications" },
-  { id: "reports", label: "Reportes", icon: BarChart3, roles: ["psychologist", "company"], dataTour: "reports" },
-  { id: "feedback", label: "Sugerir Mejoras", icon: Lightbulb, roles: ["psychologist"] },
-  { id: "settings", label: "Configuración", icon: Settings, roles: ["admin", "company"] },
+  { id: "settings", label: "Configuración", icon: Settings, roles: ["admin", "company", "psychologist"] },
 ];
 
-export function Sidebar({ activeSection, onSectionChange, userRole, isOpen, onClose, userPlan }: SidebarProps) {
+export function Sidebar({
+  activeSection,
+  onSectionChange,
+  userRole,
+  isOpen,
+  onClose,
+  collapsed = false,
+  onToggleCollapsed,
+  userPlan,
+}: SidebarProps) {
   // Map role to English for menu filtering
   const roleMap: Record<string, string> = {
     admin: "admin",
@@ -99,7 +107,7 @@ export function Sidebar({ activeSection, onSectionChange, userRole, isOpen, onCl
 
       {/* Sidebar */}
       <aside
-        className={`w-64 bg-card border-r border-border flex flex-col h-screen fixed left-0 top-0 z-50 transition-transform duration-300 ease-in-out ${
+        className={`w-64 ${collapsed ? "lg:w-20" : "lg:w-64"} bg-card border-r border-border flex flex-col h-screen fixed left-0 top-0 z-50 transition-all duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -114,13 +122,21 @@ export function Sidebar({ activeSection, onSectionChange, userRole, isOpen, onCl
         </Button>
 
         {/* Logo */}
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-[#26A69A] flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-white" />
+        <div className={`${collapsed ? "lg:px-3" : "px-5"} pt-5 pb-3`}>
+          <div className={`flex items-center ${collapsed ? "lg:flex-col lg:justify-center lg:gap-2" : "gap-2"}`}>
+            <div
+              className={`overflow-hidden transition-all duration-300 ${
+                collapsed ? "h-12 w-12" : "h-14 w-48"
+              }`}
+            >
+              <img
+                src={collapsed ? mindCarePanelIsotype : mindCarePanelLogo}
+                alt="MindCare"
+                className={`h-full w-full object-contain ${collapsed ? "object-center" : "object-left"}`}
+              />
             </div>
-            <div>
-              <h1 className="text-foreground">MindCare</h1>
+            <div className={collapsed ? "lg:hidden" : "sr-only"}>
+              <h1>MindCare</h1>
               <p className="text-xs text-muted-foreground">
                 {userRole === "admin" && "Red de Psicólogos"}
                 {userRole === "psychologist" && "Panel Profesional"}
@@ -128,6 +144,15 @@ export function Sidebar({ activeSection, onSectionChange, userRole, isOpen, onCl
                 {userRole === "employee" && "Tu Bienestar"}
               </p>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`${collapsed ? "" : "ml-auto"} hidden lg:flex text-muted-foreground hover:text-foreground`}
+              onClick={onToggleCollapsed}
+              title={collapsed ? "Mostrar menú" : "Ocultar menú"}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
           </div>
         </div>
 
@@ -142,17 +167,18 @@ export function Sidebar({ activeSection, onSectionChange, userRole, isOpen, onCl
                 <Button
                   key={item.id}
                   variant={isActive ? "secondary" : "ghost"}
-                  className={`w-full justify-start gap-3 h-11 ${
+                  className={`w-full ${collapsed ? "lg:justify-center" : "justify-start"} gap-3 h-11 ${
                     isActive
                       ? "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                       : "hover:bg-accent text-muted-foreground hover:text-foreground"
                   }`}
                   onClick={() => onSectionChange(item.id)}
                   data-tour={item.dataTour}
+                  title={collapsed ? item.label : undefined}
                 >
                   <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                  {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                  <span className={collapsed ? "lg:hidden" : ""}>{item.label}</span>
+                  {isActive && <ChevronRight className={`w-4 h-4 ml-auto ${collapsed ? "lg:hidden" : ""}`} />}
                 </Button>
               );
             })}
@@ -160,16 +186,37 @@ export function Sidebar({ activeSection, onSectionChange, userRole, isOpen, onCl
         </ScrollArea>
 
         {/* Bottom Info */}
-        <div className="p-4 border-t border-border">
-          <div className="bg-accent rounded-lg p-3">
-            <p className="text-xs text-accent-foreground mb-1">
-              ¿Necesitas ayuda?
-            </p>
-            <Button variant="link" className="h-auto p-0 text-xs text-primary">
-              Ver guía rápida
-            </Button>
+        {mappedRole === "psychologist" && (
+          <div className={`p-4 border-t border-border ${collapsed ? "lg:hidden" : ""}`}>
+            <div className="bg-accent rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Lightbulb className="w-4 h-4 text-primary" />
+                <p className="text-xs text-accent-foreground">
+                  Sugerir mejoras
+                </p>
+              </div>
+              <Button
+                variant="link"
+                className="h-auto p-0 text-xs text-primary"
+                onClick={() => onSectionChange("feedback")}
+              >
+                Enviar sugerencia
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
+        {mappedRole !== "psychologist" && (
+          <div className={`p-4 border-t border-border ${collapsed ? "lg:hidden" : ""}`}>
+            <div className="bg-accent rounded-lg p-3">
+              <p className="text-xs text-accent-foreground mb-1">
+                ¿Necesitas ayuda?
+              </p>
+              <Button variant="link" className="h-auto p-0 text-xs text-primary">
+                Ver guía rápida
+              </Button>
+            </div>
+          </div>
+        )}
       </aside>
     </>
   );

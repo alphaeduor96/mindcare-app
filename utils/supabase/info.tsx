@@ -8,3 +8,5 @@ export const supabaseFunctionsBaseUrl =
 export const projectId = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || "ssnfoheivrzhbfsrnswi";
 export const publicAnonKey =
   import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_LwDAFknte9hiBU1fs9os9g_jr-_YHxM";
+export const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+export const copomexToken = import.meta.env.VITE_COPOMEX_TOKEN || "pruebas";

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -15,8 +16,25 @@ import {
   MapPin,
   Award,
   Video,
-  GraduationCap,
+  BarChart3,
+  CalendarCheck,
+  ClipboardCheck,
+  FileText,
+  MessageSquare,
+  MessageCircle,
+  UserCheck,
+  CircleHelp,
 } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "./ui/accordion";
+import empresasBanner from "../../assets/mindcare-empresas-hero-generated.png";
+import mindcareIsotype from "../../assets/mindcare-isotype.png";
+import { supabaseFunction } from "../../services/api";
+import { toast } from "sonner";
 
 interface LandingPageProps {
   onEnterApp: () => void;
@@ -29,31 +47,31 @@ const benefits = [
     icon: TrendingUp,
     title: "Incrementa la Productividad",
     description: "35% de reducción en ausentismo y 28% de mejora en productividad laboral.",
-    color: "bg-[#66BB6A]",
+    color: "bg-[#4DB6AC]",
   },
   {
     icon: Users,
     title: "Retén el Talento",
     description: "Reduce hasta 22% la rotación de personal con programas de bienestar integral.",
-    color: "bg-[#42A5F5]",
+    color: "bg-[#4DB6AC]",
   },
   {
     icon: Heart,
     title: "Empleados Más Felices",
     description: "4.8/5 de satisfacción promedio. Empleados más comprometidos y motivados.",
-    color: "bg-[#FF9800]",
+    color: "bg-[#4DB6AC]",
   },
   {
     icon: Shield,
     title: "Cumple Normativas",
     description: "Cumplimiento con NOM-035 y mejora tu reputación como empleador responsable.",
-    color: "bg-[#7E57C2]",
+    color: "bg-[#4DB6AC]",
   },
   {
     icon: DollarSign,
     title: "100% Deducible de ISR",
     description: "Todas las prestaciones de salud mental son completamente deducibles de impuestos.",
-    color: "bg-[#81C784]",
+    color: "bg-[#80CBC4]",
   },
   {
     icon: Clock,
@@ -97,62 +115,181 @@ const testimonials = [
   },
 ];
 
-const pricingTiers = [
+const sessionPackageSteps = [
   {
-    range: "10-50",
-    name: "Pequeñas Empresas",
-    pricePerEmployee: "450",
-    savings: "Base",
-    features: [
-      "Psicólogos especializados verificados",
-      "Presencial en GDL o 100% en línea",
-      "25+ consultorios en ZMG",
-      "Dashboard de uso",
-      "Soporte por email",
-      "4 sesiones/empleado/año",
-    ],
+    title: "Compra una bolsa inicial",
+    description: "Definimos un paquete mensual de sesiones por empleado según tamaño, riesgo y objetivo del programa.",
+    detail: "Bolsa mensual para iniciar",
   },
   {
-    range: "51-200",
-    name: "Medianas Empresas",
-    pricePerEmployee: "380",
-    savings: "Ahorro 16%",
-    features: [
-      "Todo lo del plan anterior",
-      "Elección de consultorio preferido",
-      "Reportes de bienestar",
-      "Análisis por departamento",
-      "Soporte prioritario",
-      "Consultor asignado",
-    ],
-    popular: true,
+    title: "Tu equipo usa sesiones",
+    description: "Cada cita atendida se descuenta automáticamente de la bolsa, ya sea presencial o en línea.",
+    detail: "Consumo visible para RH",
   },
   {
-    range: "201+",
-    name: "Grandes Corporativos",
-    pricePerEmployee: "290",
-    savings: "Ahorro 36%",
-    features: [
-      "Todo lo del plan anterior",
-      "Consultor dedicado exclusivo",
-      "Workshops presenciales en GDL",
-      "Reportes ejecutivos mensuales",
-      "Acceso prioritario a consultorios",
-      "Sesiones adicionales disponibles",
-    ],
+    title: "Corte y facturación",
+    description: "Al cierre del periodo revisas sesiones usadas, saldo disponible y factura correspondiente.",
+    detail: "Corte claro por periodo",
+  },
+];
+
+const packageBenefits = [
+  "Sin publicar costo por sesión antes de entender el alcance real",
+  "Control de consumo por mes, área o sede",
+  "Reportes agregados de adopción, uso y satisfacción",
+  "Factura por corte con respaldo operativo de sesiones usadas",
+];
+
+const decisionQuestions = [
+  "¿Cómo sé que mi equipo sí lo va a usar?",
+  "¿Qué información ve RH sin invadir la privacidad?",
+  "¿Cuánto cuesta por empleado y cómo se justifica?",
+  "¿Qué tan rápido lo puedo implementar?",
+];
+
+const productFlow = [
+  {
+    icon: Building2,
+    title: "1. Configuramos tu empresa",
+    description: "Definimos empleados, beneficios, sesiones disponibles, modalidad y reglas de acceso.",
+  },
+  {
+    icon: Users,
+    title: "2. Tu equipo agenda fácil",
+    description: "Cada colaborador elige psicólogo, horario y modalidad presencial o en línea.",
+  },
+  {
+    icon: CalendarCheck,
+    title: "3. MindCare opera la atención",
+    description: "Gestionamos agenda, consultorios, recordatorios, asistencia y seguimiento operativo.",
+  },
+  {
+    icon: BarChart3,
+    title: "4. RH ve resultados",
+    description: "Recibes métricas agregadas de uso, adopción, satisfacción y evolución del programa.",
+  },
+];
+
+const hrDashboardItems = [
+  {
+    icon: BarChart3,
+    title: "Adopción del beneficio",
+    description: "Usuarios activos, sesiones tomadas, áreas con mayor uso y tendencia mensual.",
+  },
+  {
+    icon: Shield,
+    title: "Privacidad clínica",
+    description: "RH nunca ve notas clínicas ni detalles sensibles de colaboradores.",
+  },
+  {
+    icon: FileText,
+    title: "Reportes ejecutivos",
+    description: "Información lista para dirección, finanzas y comités de bienestar.",
+  },
+  {
+    icon: Heart,
+    title: "Satisfacción con el beneficio",
+    description: "Pregunta agregada al empleado: ¿Este beneficio mejora tu satisfacción con la empresa?",
+  },
+];
+
+const implementationSteps = [
+  "Diagnóstico inicial y definición del plan",
+  "Carga de empleados o liga de acceso",
+  "Comunicación interna de lanzamiento",
+  "Primer mes con seguimiento de adopción",
+];
+
+const faqs = [
+  {
+    question: "¿Qué información recibe la empresa?",
+    answer: "Indicadores agregados: uso del beneficio, sesiones tomadas, satisfacción, NPS del beneficio y tendencias. Por ejemplo: ¿Este beneficio mejora tu satisfacción con la empresa? No se comparten diagnósticos, notas clínicas ni información sensible del colaborador.",
+  },
+  {
+    question: "¿Puede ser presencial y en línea?",
+    answer: "Sí. El programa puede operar con sesiones presenciales en consultorios disponibles y sesiones por videollamada para equipos remotos o híbridos.",
+  },
+  {
+    question: "¿Cómo se cobra?",
+    answer: "La empresa compra una bolsa inicial de sesiones por empleado al mes. Cada cita atendida se descuenta de esa bolsa; al cierre del periodo se hace corte, se muestra el consumo y se factura con respaldo operativo.",
+  },
+  {
+    question: "¿Qué pasa si pocos empleados lo usan?",
+    answer: "Durante la implementación se trabaja comunicación interna, recordatorios y seguimiento de adopción para que el beneficio sea visible, claro y fácil de usar.",
+  },
+  {
+    question: "¿En cuánto tiempo puede iniciar?",
+    answer: "Un lanzamiento estándar puede estar listo en días: configuración, comunicación interna, acceso al equipo y agenda disponible.",
   },
 ];
 
 export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLanding }: LandingPageProps) {
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const [leadForm, setLeadForm] = useState({
+    name: "",
+    company: "",
+    email: "",
+    whatsapp: "",
+    employees: "",
+    message: "",
+  });
+
+  const scrollToInformationForm = () => {
+    document.getElementById("solicitar-informacion")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const handleLeadSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!leadForm.name.trim() || !leadForm.company.trim() || !leadForm.email.trim()) {
+      toast.error("Completa nombre, empresa y correo corporativo.");
+      return;
+    }
+
+    setLeadSubmitting(true);
+
+    try {
+      await supabaseFunction("supabase-functions-deploy-company-lead-email", {
+        method: "POST",
+        body: JSON.stringify(leadForm),
+      });
+
+      toast.success("Solicitud enviada. Te contactaremos pronto.");
+      setLeadForm({
+        name: "",
+        company: "",
+        email: "",
+        whatsapp: "",
+        employees: "",
+        message: "",
+      });
+    } catch (error: any) {
+      console.error("Company lead submit error:", error);
+      const message = String(error?.message || "");
+      toast.error(
+        message.includes("Load failed") || message.includes("Failed to fetch")
+          ? "No se pudo conectar con la función. Revisa que company-lead-email esté desplegada y con JWT desactivado."
+          : message || "No se pudo enviar la solicitud."
+      );
+    } finally {
+      setLeadSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#F8FFFE] to-white">
       {/* Header/Navbar */}
       <header className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-b border-border z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-[#26A69A] flex items-center justify-center">
-              <Heart className="w-6 h-6 text-white" />
-            </div>
+            <img
+              src={mindcareIsotype}
+              alt="MindCare"
+              className="h-12 w-12 object-contain"
+            />
             <div>
               <h1 className="text-xl text-foreground">MindCare</h1>
               <p className="text-xs text-muted-foreground">Salud Mental Empresarial</p>
@@ -161,17 +298,17 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
-              onClick={onApplyAsPsychologist}
-              className="border-[#7E57C2] text-[#7E57C2] hover:bg-[#7E57C2]/5 gap-2"
+              onClick={scrollToInformationForm}
+              className="border-[#4DB6AC] text-[#4DB6AC] hover:bg-[#4DB6AC]/5 gap-2"
             >
-              <GraduationCap className="w-4 h-4" />
-              Únete a la Red
+              <MessageSquare className="w-4 h-4" />
+              Solicitar información
             </Button>
             <Button
-              onClick={onEnterApp}
+              onClick={scrollToInformationForm}
               className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
             >
-              Ingresar al Panel
+              Solicitar demo
               <ArrowRight className="w-4 h-4" />
             </Button>
           </div>
@@ -179,67 +316,73 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
       </header>
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 overflow-hidden">
-        {/* Background Image with Overlay */}
+      <section className="enterprise-hero relative min-h-[760px] pt-28 px-6 overflow-hidden flex items-center">
         <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1590649880765-91b1956b8276?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoYXBweSUyMG9mZmljZSUyMHRlYW0lMjBjb2xsYWJvcmF0aW9ufGVufDF8fHx8MTc2MTEwODEwMnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-            alt="Equipo feliz colaborando"
-            className="w-full h-full object-cover"
+          <img
+            src={empresasBanner}
+            alt="Equipo empresarial colaborando con MindCare Empresas"
+            className="enterprise-hero__image h-full w-full object-cover object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-br from-white/95 via-white/90 to-primary/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#062F32]/95 via-[#062F32]/72 to-[#062F32]/10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#062F32]/70 via-transparent to-transparent" />
         </div>
-        
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center max-w-4xl mx-auto mb-12">
-            <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2 shadow-sm">
-              🏆 Programa de Bienestar #1 en México
+
+        <div className="enterprise-hero__content max-w-7xl mx-auto relative z-10 w-full">
+          <div className="max-w-2xl py-16">
+            <Badge className="mb-6 bg-white/12 text-white border border-white/20 px-4 py-2 shadow-sm backdrop-blur-md">
+              MindCare Empresas
             </Badge>
-            <h1 className="text-5xl md:text-6xl text-foreground mb-6 leading-tight drop-shadow-sm">
-              Empleados Felices,
-              <br />
-              <span className="bg-gradient-to-r from-primary to-[#66BB6A] bg-clip-text text-transparent">
-                Empresas Exitosas
+            <h1 className="text-5xl md:text-7xl text-white mb-6 leading-[0.95] tracking-tight">
+              Cuidamos a tu equipo,
+              <span className="block text-[#8EDDD4]">
+                impulsamos tu empresa.
               </span>
             </h1>
-            <p className="text-xl text-foreground/90 mb-8 leading-relaxed drop-shadow-sm">
-              Red exclusiva de psicólogos especializados en Guadalajara.
-              <br />
-              Sesiones presenciales en +25 consultorios o 100% en línea.
+            <p className="text-xl md:text-2xl text-white/84 mb-8 leading-relaxed max-w-xl">
+              Programa de salud mental para empresas con psicólogos certificados,
+              sesiones presenciales o en línea y reportes claros para RH.
             </p>
-            <div className="flex items-center justify-center gap-6 mb-8">
-              <div className="flex items-center gap-2 text-foreground/80 bg-white/70 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
-                <MapPin className="w-5 h-5 text-primary" />
+            <div className="flex flex-wrap items-center gap-3 mb-9">
+              <div className="flex items-center gap-2 text-white bg-white/12 backdrop-blur-md px-4 py-2 rounded-full border border-white/15">
+                <MapPin className="w-5 h-5 text-[#8EDDD4]" />
                 <span>Presencial en GDL</span>
               </div>
-              <div className="w-px h-6 bg-border" />
-              <div className="flex items-center gap-2 text-foreground/80 bg-white/70 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
-                <Video className="w-5 h-5 text-primary" />
+              <div className="flex items-center gap-2 text-white bg-white/12 backdrop-blur-md px-4 py-2 rounded-full border border-white/15">
+                <Video className="w-5 h-5 text-[#8EDDD4]" />
                 <span>Sesiones en Línea</span>
               </div>
+              <div className="flex items-center gap-2 text-white bg-white/12 backdrop-blur-md px-4 py-2 rounded-full border border-white/15">
+                <Shield className="w-5 h-5 text-[#8EDDD4]" />
+                <span>NOM-035</span>
+              </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start gap-4">
               <Button
                 size="lg"
-                onClick={onEnterApp}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8 py-6 gap-2 shadow-lg hover:shadow-xl transition-shadow"
+                onClick={scrollToInformationForm}
+                className="bg-[#4DB6AC] text-white hover:bg-[#26A69A] text-lg px-8 py-6 gap-2 shadow-lg shadow-black/20"
               >
-                Comenzar Ahora
+                Solicitar información
                 <ArrowRight className="w-5 h-5" />
               </Button>
-              <Button size="lg" variant="outline" className="text-lg px-8 py-6 bg-white/90 backdrop-blur-sm hover:bg-white shadow-md">
-                Solicitar Demo
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={onGoToControlLanding}
+                className="text-lg px-8 py-6 bg-white/10 text-white border-white/30 hover:bg-white/20 backdrop-blur-md"
+              >
+                Soy Psicólogo
               </Button>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl pb-10">
             {stats.map((stat, index) => (
-              <Card key={index} className="border-border bg-white/95 backdrop-blur-sm hover:shadow-lg transition-shadow">
-                <CardContent className="p-6 text-center">
-                  <p className="text-4xl text-primary mb-2">{stat.value}</p>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
+              <Card key={index} className="border-white/15 bg-white/12 backdrop-blur-md shadow-lg shadow-black/10">
+                <CardContent className="p-5">
+                  <p className="text-3xl text-white mb-1">{stat.value}</p>
+                  <p className="text-sm text-white/72">{stat.label}</p>
                 </CardContent>
               </Card>
             ))}
@@ -247,310 +390,287 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
         </div>
       </section>
 
-      {/* Quality Guarantee Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-primary/5 to-[#66BB6A]/5">
+      {/* Executive Buying Journey */}
+      <section className="py-16 px-6 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2">
-              ✨ Nuestra Garantía de Calidad
+          <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-10 items-center">
+            <div>
+              <Badge className="mb-5 bg-primary/10 text-primary px-4 py-2">
+                Para RH, Dirección y Finanzas
+              </Badge>
+              <h2 className="text-4xl text-foreground mb-4 leading-tight">
+                Antes de contratar un beneficio, necesitas claridad.
+              </h2>
+              <p className="text-lg text-muted-foreground leading-relaxed">
+                Una empresa no compra solo sesiones. Compra adopción, operación,
+                privacidad, reportes y una forma sencilla de cuidar a su equipo.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {decisionQuestions.map((question) => (
+                <div key={question} className="rounded-2xl border border-border bg-accent/20 p-5">
+                  <CircleHelp className="w-5 h-5 text-primary mb-4" />
+                  <p className="text-foreground leading-snug">{question}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Product Flow */}
+      <section className="py-20 px-6 bg-gradient-to-br from-primary/5 via-white to-[#E0F2F1]">
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-3xl mb-12">
+            <Badge className="mb-5 bg-primary/10 text-primary px-4 py-2">
+              Cómo funciona
             </Badge>
             <h2 className="text-4xl text-foreground mb-4">
-              Solo Psicólogos de Élite
+              Un programa de salud mental que se opera fácil y se mide bien.
             </h2>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              A diferencia de otras plataformas, cada psicólogo en nuestra red ha pasado
-              por un riguroso proceso de selección y verificación.
+            <p className="text-xl text-muted-foreground">
+              RH no tiene que coordinar citas ni manejar información sensible.
+              MindCare centraliza la operación y entrega visibilidad ejecutiva.
             </p>
-            <Button
-              onClick={onApplyAsPsychologist}
-              variant="outline"
-              className="mt-6 border-[#7E57C2] text-[#7E57C2] hover:bg-[#7E57C2]/5 gap-2"
-            >
-              <GraduationCap className="w-5 h-5" />
-              ¿Eres Psicólogo? Aplica Aquí
-            </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <Card className="border-2 border-primary/20 bg-white hover:shadow-xl transition-all">
-              <CardContent className="p-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-                  <Award className="w-8 h-8 text-primary" />
-                </div>
-                <h3 className="text-xl text-foreground mb-3">100% Certificados</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  Todos nuestros psicólogos cuentan con cédula profesional vigente y
-                  certificaciones especializadas verificadas.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 border-primary/20 bg-white hover:shadow-xl transition-all">
-              <CardContent className="p-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-[#66BB6A]/10 flex items-center justify-center mx-auto mb-6">
-                  <GraduationCap className="w-8 h-8 text-[#66BB6A]" />
-                </div>
-                <h3 className="text-xl text-foreground mb-3">Especialistas Únicamente</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  No hay psicólogos generales. Cada profesional tiene áreas de
-                  especialización definidas y experiencia comprobable.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 border-primary/20 bg-white hover:shadow-xl transition-all">
-              <CardContent className="p-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-[#4DB6AC]/10 flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle2 className="w-8 h-8 text-[#4DB6AC]" />
-                </div>
-                <h3 className="text-xl text-foreground mb-3">Proceso Riguroso</h3>
-                <p className="text-muted-foreground leading-relaxed">
-                  Solo el 8% de los aplicantes son aceptados. Evaluamos experiencia,
-                  referencias y habilidades clínicas.
-                </p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {productFlow.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Card key={item.title} className="border-border bg-white shadow-sm hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+                      <Icon className="w-6 h-6 text-primary" />
+                    </div>
+                    <h3 className="text-lg text-foreground mb-3">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {item.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
+        </div>
+      </section>
 
-          <Card className="border-border bg-white">
-            <CardContent className="p-8">
-              <div className="flex flex-col md:flex-row items-center gap-8">
-                <div className="flex-1">
-                  <h3 className="text-2xl text-foreground mb-4">
-                    Red de Consultorios en Guadalajara
-                  </h3>
-                  <p className="text-muted-foreground mb-6 leading-relaxed">
-                    Más de 25 ubicaciones estratégicas en toda la Zona Metropolitana
-                    de Guadalajara para que tus empleados encuentren un consultorio
-                    cerca de casa o trabajo.
+      {/* RH Dashboard Preview */}
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.95fr] gap-10 items-center">
+            <div className="rounded-[2rem] border border-border bg-[#F7FAFA] p-6 lg:p-8 shadow-sm">
+              <div className="rounded-[1.5rem] bg-white border border-border p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Panel RH</p>
+                    <h3 className="text-2xl text-foreground">Bienestar del equipo</h3>
+                  </div>
+                  <Badge className="bg-primary/10 text-primary">Mes actual</Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="rounded-2xl bg-primary/10 p-4">
+                    <p className="text-2xl text-primary">68%</p>
+                    <p className="text-xs text-muted-foreground">Adopción</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#E0F2F1] p-4">
+                    <p className="text-2xl text-[#00695C]">124</p>
+                    <p className="text-xs text-muted-foreground">Sesiones</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#E0F7FA] p-4">
+                    <p className="text-2xl text-[#00695C]">4.8</p>
+                    <p className="text-xs text-muted-foreground">Satisfacción</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#F8FFFE] border border-primary/15 p-4">
+                    <p className="text-2xl text-[#00695C]">+62</p>
+                    <p className="text-xs text-muted-foreground">NPS beneficio</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {[
+                    ["Sesiones presenciales", "46%"],
+                    ["Sesiones en línea", "54%"],
+                    ["Citas completadas", "91%"],
+                    ["Satisfacción con tu empresa", "88%"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-border p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-foreground">{label}</span>
+                        <span className="text-sm text-primary">{value}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-accent overflow-hidden">
+                        <div className="h-full rounded-full bg-primary" style={{ width: value }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Badge className="mb-5 bg-primary/10 text-primary px-4 py-2">
+                Qué ve la empresa
+              </Badge>
+              <h2 className="text-4xl text-foreground mb-5 leading-tight">
+                Métricas útiles para decidir, sin cruzar líneas clínicas.
+              </h2>
+              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                Una empresa necesita saber si el beneficio funciona. MindCare muestra
+                datos operativos y agregados, manteniendo privada la relación terapéutica.
+              </p>
+              <div className="space-y-4">
+                {hrDashboardItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.title} className="flex gap-4 rounded-2xl border border-border bg-white p-5">
+                      <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-foreground mb-1">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Clinical Trust and Flexible Access */}
+      <section className="py-20 px-6 bg-gradient-to-br from-primary/5 to-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-10 items-start mb-12">
+            <div>
+              <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2">
+                Confianza clínica
+              </Badge>
+              <h2 className="text-4xl text-foreground mb-4 leading-tight">
+                Atención profesional, verificada y fácil de activar.
+              </h2>
+              <p className="text-xl text-muted-foreground leading-relaxed">
+                MindCare combina psicólogos con perfil validado, reglas claras de privacidad
+                y una experiencia sencilla para que el colaborador pueda pedir ayuda sin fricción.
+              </p>
+              <Button
+                onClick={onGoToControlLanding}
+                variant="outline"
+                className="mt-8 border-primary text-primary hover:bg-primary/5 gap-2"
+              >
+                Conoce el proceso de la red
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="border-border bg-white shadow-sm hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+                    <Award className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="text-lg text-foreground mb-2">Perfil validado</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Cédula, experiencia, enfoque terapéutico y disponibilidad documentada.
                   </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-start gap-3">
-                      <MapPin className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
-                      <div>
-                        <p className="text-sm text-foreground">Zona Centro</p>
-                        <p className="text-xs text-muted-foreground">8 consultorios</p>
-                      </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border bg-white shadow-sm hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="w-12 h-12 rounded-2xl bg-[#E0F2F1] flex items-center justify-center mb-5">
+                    <UserCheck className="w-6 h-6 text-[#00695C]" />
+                  </div>
+                  <h3 className="text-lg text-foreground mb-2">Asignación simple</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    El colaborador elige psicólogo, horario y modalidad desde un flujo claro.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border bg-white shadow-sm hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="w-12 h-12 rounded-2xl bg-[#E0F2F1] flex items-center justify-center mb-5">
+                    <Shield className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="text-lg text-foreground mb-2">Privacidad cuidada</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    La empresa ve métricas agregadas, no notas clínicas ni información sensible.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <Card className="border-border bg-[#062F32] text-white overflow-hidden shadow-xl">
+            <CardContent className="p-0">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.05fr]">
+                <div className="p-8 lg:p-10">
+                  <Badge className="mb-6 bg-white/12 text-white border border-white/20">
+                    Acceso flexible
+                  </Badge>
+                  <h3 className="text-3xl mb-4">
+                    Una red de atención pensada para equipos híbridos.
+                  </h3>
+                  <p className="text-white/78 leading-relaxed mb-8">
+                    No todos los colaboradores necesitan lo mismo. Algunos prefieren atención
+                    presencial, otros videollamada, y otros solo necesitan disponibilidad rápida.
+                    La experiencia se adapta sin que RH tenga que coordinar caso por caso.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="rounded-2xl bg-white/10 p-5 border border-white/10">
+                      <MapPin className="w-6 h-6 text-[#8EDDD4] mb-4" />
+                      <p className="text-lg mb-1">Presencial</p>
+                      <p className="text-sm text-white/70">Consultorios disponibles por zona y cercanía.</p>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <MapPin className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
-                      <div>
-                        <p className="text-sm text-foreground">Zapopan</p>
-                        <p className="text-xs text-muted-foreground">7 consultorios</p>
-                      </div>
+                    <div className="rounded-2xl bg-white/10 p-5 border border-white/10">
+                      <Video className="w-6 h-6 text-[#8EDDD4] mb-4" />
+                      <p className="text-lg mb-1">En línea</p>
+                      <p className="text-sm text-white/70">Sesiones remotas para equipos distribuidos.</p>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <MapPin className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
-                      <div>
-                        <p className="text-sm text-foreground">Tlaquepaque</p>
-                        <p className="text-xs text-muted-foreground">5 consultorios</p>
-                      </div>
+                    <div className="rounded-2xl bg-white/10 p-5 border border-white/10">
+                      <CalendarCheck className="w-6 h-6 text-[#8EDDD4] mb-4" />
+                      <p className="text-lg mb-1">Agenda clara</p>
+                      <p className="text-sm text-white/70">Horarios disponibles, recordatorios y seguimiento.</p>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <MapPin className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
-                      <div>
-                        <p className="text-sm text-foreground">Tonalá</p>
-                        <p className="text-xs text-muted-foreground">5 consultorios</p>
-                      </div>
+                    <div className="rounded-2xl bg-white/10 p-5 border border-white/10">
+                      <MessageSquare className="w-6 h-6 text-[#8EDDD4] mb-4" />
+                      <p className="text-lg mb-1">Comunicación</p>
+                      <p className="text-sm text-white/70">Mensajes de lanzamiento y adopción para el equipo.</p>
                     </div>
                   </div>
                 </div>
-                <div className="w-full md:w-[400px] h-[300px] bg-accent/30 rounded-xl flex items-center justify-center relative overflow-hidden">
-                  <div className="absolute inset-0">
-                    <img 
-                      src="https://images.unsplash.com/photo-1717700300409-9cfe51e29671?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtZXhpY28lMjBtYXAlMjBtb2Rlcm4lMjBpbGx1c3RyYXRpb258ZW58MXx8fHwxNzYwNDc5NTEwfDA&ixlib=rb-4.1.0&q=80&w=1080"
-                      alt="Mapa de México - Zona Guadalajara"
-                      className="w-full h-full object-cover opacity-70"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-[#66BB6A]/30" />
-                    {/* Pines de ubicaciones de consultorios en Guadalajara */}
-                    <div className="absolute w-10 h-10 -translate-x-1/2 -translate-y-full animate-bounce" style={{ left: "35%", top: "45%", animationDelay: "0s", animationDuration: "2s" }}>
-                      <MapPin className="w-10 h-10 text-primary drop-shadow-2xl fill-white" />
-                    </div>
-                    <div className="absolute w-10 h-10 -translate-x-1/2 -translate-y-full animate-bounce" style={{ left: "52%", top: "38%", animationDelay: "0.2s", animationDuration: "2s" }}>
-                      <MapPin className="w-10 h-10 text-primary drop-shadow-2xl fill-white" />
-                    </div>
-                    <div className="absolute w-10 h-10 -translate-x-1/2 -translate-y-full animate-bounce" style={{ left: "48%", top: "55%", animationDelay: "0.4s", animationDuration: "2s" }}>
-                      <MapPin className="w-10 h-10 text-primary drop-shadow-2xl fill-white" />
-                    </div>
-                    <div className="absolute w-10 h-10 -translate-x-1/2 -translate-y-full animate-bounce" style={{ left: "60%", top: "50%", animationDelay: "0.6s", animationDuration: "2s" }}>
-                      <MapPin className="w-10 h-10 text-primary drop-shadow-2xl fill-white" />
-                    </div>
-                    <div className="absolute w-10 h-10 -translate-x-1/2 -translate-y-full animate-bounce" style={{ left: "42%", top: "48%", animationDelay: "0.8s", animationDuration: "2s" }}>
-                      <MapPin className="w-10 h-10 text-primary drop-shadow-2xl fill-white" />
-                    </div>
-                    <div className="absolute w-10 h-10 -translate-x-1/2 -translate-y-full animate-bounce" style={{ left: "55%", top: "42%", animationDelay: "1s", animationDuration: "2s" }}>
-                      <MapPin className="w-10 h-10 text-primary drop-shadow-2xl fill-white" />
-                    </div>
-                    <div className="absolute w-10 h-10 -translate-x-1/2 -translate-y-full animate-bounce" style={{ left: "38%", top: "58%", animationDelay: "1.2s", animationDuration: "2s" }}>
-                      <MapPin className="w-10 h-10 text-primary drop-shadow-2xl fill-white" />
-                    </div>
-                    <div className="absolute w-10 h-10 -translate-x-1/2 -translate-y-full animate-bounce" style={{ left: "65%", top: "45%", animationDelay: "1.4s", animationDuration: "2s" }}>
-                      <MapPin className="w-10 h-10 text-primary drop-shadow-2xl fill-white" />
-                    </div>
+
+                <div className="bg-white text-foreground p-8 lg:p-10">
+                  <div className="mb-8">
+                    <p className="text-sm text-muted-foreground mb-2">Experiencia del colaborador</p>
+                    <h3 className="text-2xl text-foreground">Pedir apoyo debe sentirse simple.</h3>
                   </div>
-                  <div className="absolute bottom-6 left-6 bg-white p-4 rounded-lg shadow-lg">
-                    <p className="text-foreground">25+ Ubicaciones</p>
-                    <p className="text-sm text-muted-foreground">ZMG, Jalisco</p>
+                  <div className="space-y-4">
+                    {[
+                      ["Elige modalidad", "Presencial o en línea según disponibilidad y preferencia."],
+                      ["Selecciona horario", "Agenda con opciones claras y confirmación inmediata."],
+                      ["Recibe recordatorios", "Menos ausencias y mejor continuidad del proceso."],
+                      ["Mantiene privacidad", "Su información clínica no se comparte con la empresa."],
+                    ].map(([title, description], index) => (
+                      <div key={title} className="flex gap-4 rounded-2xl border border-border bg-accent/20 p-4">
+                        <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm flex-shrink-0">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="text-foreground mb-1">{title}</p>
+                          <p className="text-sm text-muted-foreground">{description}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </div>
-      </section>
-
-      {/* Office Gallery Section */}
-      <section className="py-20 px-6 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2">
-              🏥 Consultorios de Alta Calidad
-            </Badge>
-            <h2 className="text-4xl text-foreground mb-4">
-              Espacios Amplios, Modernos y Profesionales
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Más de 25 consultorios cuidadosamente seleccionados en toda la ZMG.
-              Espacios diseñados para tu privacidad, comodidad y bienestar.
-            </p>
-          </div>
-
-          {/* Grid de 6 fotos - 2 grandes, 4 medianas */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            {/* Foto grande 1 - ocupa 2 columnas */}
-            <Card className="overflow-hidden border-border bg-white hover:shadow-xl transition-all group md:col-span-2">
-              <div className="relative h-80 overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1700142360825-d21edc53c8db?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjB0aGVyYXB5JTIwcm9vbXxlbnwxfHx8fDE3NjA0MzgxMDR8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                  alt="Consultorio Moderno y Espacioso"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-6 left-6 text-white">
-                  <p className="text-lg opacity-95">Consultorio Moderno y Espacioso</p>
-                  <p className="text-sm opacity-80">Zona Zapopan - 45m²</p>
-                  <div className="flex items-center gap-4 mt-2">
-                    <div className="flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span className="text-xs">Luz Natural</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span className="text-xs">Insonorizado</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Foto mediana 1 */}
-            <Card className="overflow-hidden border-border bg-white hover:shadow-xl transition-all group">
-              <div className="relative h-80 overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1754294437684-7898b3701ac7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwc3ljaG9sb2d5JTIwdGhlcmFweSUyMG9mZmljZXxlbnwxfHx8fDE3NjA0ODg1MDR8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                  alt="Sala de Terapia Profesional"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-6 left-6 text-white">
-                  <p className="text-base opacity-95">Sala de Terapia Profesional</p>
-                  <p className="text-xs opacity-80">Zona Centro</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Foto mediana 2 */}
-            <Card className="overflow-hidden border-border bg-white hover:shadow-xl transition-all group">
-              <div className="relative h-64 overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1752650732081-8f61e81813ed?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3Vuc2VsaW5nJTIwb2ZmaWNlJTIwaW50ZXJpb3J8ZW58MXx8fHwxNzYwNDg4NTA1fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                  alt="Consultorio de Terapia Psicológica"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-4 left-4 text-white">
-                  <p className="text-sm opacity-95">Consultorio de Terapia</p>
-                  <p className="text-xs opacity-80">Zona Providencia</p>
-                </div>
-              </div>
-            </Card>
-
-            {/* Foto grande 2 - ocupa 2 columnas */}
-            <Card className="overflow-hidden border-border bg-white hover:shadow-xl transition-all group md:col-span-2">
-              <div className="relative h-64 overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1719903466697-ee9437c8572f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwc3ljaG9sb2dpc3QlMjBjb25zdWx0YXRpb24lMjByb29tfGVufDF8fHx8MTc2MDQ4ODUwNnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                  alt="Sala de Consulta Psicológica"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-4 left-6 text-white">
-                  <p className="text-lg opacity-95">Sala de Consulta Psicológica</p>
-                  <p className="text-sm opacity-80">Zona Chapalita - Ambiente relajante y acogedor</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-            {/* Fotos adicionales */}
-            <Card className="overflow-hidden border-border bg-white hover:shadow-xl transition-all group">
-              <div className="relative h-64 overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1754294437684-7898b3701ac7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGVyYXB5JTIwd2FpdGluZyUyMHJvb218ZW58MXx8fHwxNzYwNDg4NTA2fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                  alt="Sala de Espera Psicológica"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-4 left-4 text-white">
-                  <p className="text-base opacity-95">Sala de Espera Profesional</p>
-                  <p className="text-xs opacity-80">Zona Tlaquepaque</p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="overflow-hidden border-border bg-white hover:shadow-xl transition-all group">
-              <div className="relative h-64 overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1754294437684-7898b3701ac7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtZW50YWwlMjBoZWFsdGglMjBjbGluaWN8ZW58MXx8fHwxNzYwNDg4NTA2fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                  alt="Clínica de Salud Mental"
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-4 left-4 text-white">
-                  <p className="text-base opacity-95">Clínica de Salud Mental</p>
-                  <p className="text-xs opacity-80">Zona Andares</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            <div className="text-center p-6 bg-accent/20 rounded-xl">
-              <CheckCircle2 className="w-10 h-10 text-primary mx-auto mb-3" />
-              <h4 className="text-foreground mb-2">Privacidad Total</h4>
-              <p className="text-sm text-muted-foreground">
-                Salas insonorizadas y acceso discreto
-              </p>
-            </div>
-            <div className="text-center p-6 bg-accent/20 rounded-xl">
-              <CheckCircle2 className="w-10 h-10 text-primary mx-auto mb-3" />
-              <h4 className="text-foreground mb-2">Ubicaciones Estratégicas</h4>
-              <p className="text-sm text-muted-foreground">
-                Cerca de casa o trabajo en toda la ZMG
-              </p>
-            </div>
-            <div className="text-center p-6 bg-accent/20 rounded-xl">
-              <CheckCircle2 className="w-10 h-10 text-primary mx-auto mb-3" />
-              <h4 className="text-foreground mb-2">Ambientes Relajantes</h4>
-              <p className="text-sm text-muted-foreground">
-                Diseñados para tu comodidad y bienestar
-              </p>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -612,7 +732,7 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
                       <p className="text-foreground">{testimonial.company}</p>
                       <div className="flex items-center gap-1 mt-1">
                         {[...Array(testimonial.rating)].map((_, i) => (
-                          <Star key={i} className="w-4 h-4 fill-[#FFB74D] text-[#FFB74D]" />
+                          <Star key={i} className="w-4 h-4 fill-[#4DB6AC] text-[#4DB6AC]" />
                         ))}
                       </div>
                     </div>
@@ -631,145 +751,94 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
         </div>
       </section>
 
-      {/* Pricing Plans */}
+      {/* Session Package Model */}
       <section className="py-20 px-6 bg-accent/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <Badge className="mb-6 bg-[#FF9800]/10 text-[#FF9800] px-4 py-2">
-              💰 Precios Escalonados
+            <Badge className="mb-6 bg-[#4DB6AC]/10 text-[#4DB6AC] px-4 py-2">
+              Modelo de consumo
             </Badge>
             <h2 className="text-4xl text-foreground mb-4">
-              Más Empleados = Menor Costo por Persona
+              Compra una bolsa de sesiones y paga sobre uso real.
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Planes diseñados para crecer contigo. Entre más empleados, mejor el precio unitario.
+              La empresa inicia con un paquete mensual de sesiones para sus colaboradores.
+              Conforme se atienden citas, la bolsa se descuenta, se hace corte y se factura con claridad.
             </p>
           </div>
 
-          {/* Pricing Table */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto mb-12">
-            {pricingTiers.map((tier, index) => (
-              <Card
-                key={index}
-                className={`border-2 bg-white relative overflow-hidden transition-all hover:shadow-2xl ${
-                  tier.popular ? "border-primary shadow-xl scale-[1.02]" : "border-border"
-                }`}
-              >
-                {tier.popular && (
-                  <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-4 py-1 text-sm">
-                    Más Popular
-                  </div>
-                )}
-                <CardContent className="p-8">
-                  <div className="mb-6">
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-sm text-muted-foreground">
-                        {tier.range} empleados
-                      </span>
-                      {tier.savings !== "Base" && (
-                        <Badge variant="secondary" className="bg-[#66BB6A]/10 text-[#66BB6A] text-xs">
-                          {tier.savings}
-                        </Badge>
-                      )}
-                    </div>
-                    <h3 className="text-2xl text-foreground mb-1">{tier.name}</h3>
-                  </div>
-
-                  <div className="mb-6 pb-6 border-b border-border">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-5xl text-primary">${tier.pricePerEmployee}</span>
-                      <div className="flex flex-col">
-                        <span className="text-sm text-muted-foreground">MXN</span>
-                        <span className="text-xs text-muted-foreground">por empleado/mes</span>
+          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-8 items-stretch mb-10">
+            <Card className="border-border bg-white shadow-sm">
+              <CardContent className="p-8 lg:p-10">
+                <div className="flex flex-col gap-5">
+                  {sessionPackageSteps.map((step, index) => (
+                    <div key={step.title} className="flex gap-5 rounded-2xl border border-border bg-[#F8FFFE] p-5">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <h3 className="text-xl text-foreground">{step.title}</h3>
+                          <Badge className="bg-primary/10 text-primary">{step.detail}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
                       </div>
                     </div>
-                  </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
-                  <ul className="space-y-3 mb-8">
-                    {tier.features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <CheckCircle2 className="w-5 h-5 text-[#81C784] flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-muted-foreground">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  <Button
-                    className={`w-full ${
-                      tier.popular
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                        : ""
-                    }`}
-                    variant={tier.popular ? "default" : "outline"}
-                    onClick={onEnterApp}
-                  >
-                    Solicitar Cotización
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+            <Card className="border-primary/15 bg-gradient-to-br from-[#062F32] to-[#0B5558] text-white overflow-hidden">
+              <CardContent className="p-8 lg:p-10">
+                <Badge className="mb-6 bg-white/12 text-white border border-white/20">
+                  Para RH y finanzas
+                </Badge>
+                <h3 className="text-3xl mb-4 leading-tight">
+                  Control presupuestal sin prometer precios antes de diagnosticar.
+                </h3>
+                <p className="text-white/78 mb-7 leading-relaxed">
+                  Primero dimensionamos la necesidad: número de empleados, modalidad,
+                  ubicaciones, frecuencia sugerida y nivel de acompañamiento.
+                </p>
+                <div className="space-y-3">
+                  {packageBenefits.map((benefit) => (
+                    <div key={benefit} className="flex items-start gap-3 rounded-2xl bg-white/10 border border-white/10 p-4">
+                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#8EDDD4]" />
+                      <span className="text-sm text-white/90">{benefit}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Pricing Calculator Preview */}
-          <Card className="max-w-4xl mx-auto border-2 border-primary/20 bg-gradient-to-br from-white to-primary/5">
+          <Card className="max-w-5xl mx-auto border-2 border-primary/20 bg-gradient-to-br from-white to-primary/5">
             <CardContent className="p-8">
-              <div className="text-center mb-8">
-                <h3 className="text-2xl text-foreground mb-2">
-                  Calcula tu Inversión Mensual
-                </h3>
-                <p className="text-muted-foreground">
-                  Ejemplo con diferentes tamaños de equipo
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-lg p-6 border border-border text-center">
-                  <p className="text-sm text-muted-foreground mb-2">Equipo de</p>
-                  <p className="text-3xl text-foreground mb-2">30</p>
-                  <p className="text-xs text-muted-foreground mb-4">empleados</p>
-                  <div className="pt-4 border-t border-border">
-                    <p className="text-sm text-muted-foreground">Inversión mensual</p>
-                    <p className="text-2xl text-primary">$13,500</p>
-                    <p className="text-xs text-muted-foreground mt-1">$450/empleado</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {[
+                  ["Bolsa inicial", "Sesiones disponibles para el mes según el paquete contratado."],
+                  ["Consumo", "Cada cita completada descuenta una sesión de la bolsa."],
+                  ["Corte mensual", "Se entrega resumen de uso, saldo y factura del periodo."],
+                ].map(([title, description]) => (
+                  <div key={title} className="rounded-2xl border border-border bg-white p-5">
+                    <p className="text-lg text-foreground mb-2">{title}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
                   </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg p-6 border-2 border-primary text-center">
-                  <Badge className="mb-2 bg-primary text-primary-foreground">Ahorro 16%</Badge>
-                  <p className="text-sm text-muted-foreground mb-2">Equipo de</p>
-                  <p className="text-3xl text-foreground mb-2">100</p>
-                  <p className="text-xs text-muted-foreground mb-4">empleados</p>
-                  <div className="pt-4 border-t border-primary/20">
-                    <p className="text-sm text-muted-foreground">Inversión mensual</p>
-                    <p className="text-2xl text-primary">$38,000</p>
-                    <p className="text-xs text-muted-foreground mt-1">$380/empleado</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg p-6 border border-border text-center">
-                  <Badge className="mb-2 bg-[#66BB6A]/10 text-[#66BB6A]">Ahorro 36%</Badge>
-                  <p className="text-sm text-muted-foreground mb-2">Equipo de</p>
-                  <p className="text-3xl text-foreground mb-2">300</p>
-                  <p className="text-xs text-muted-foreground mb-4">empleados</p>
-                  <div className="pt-4 border-t border-border">
-                    <p className="text-sm text-muted-foreground">Inversión mensual</p>
-                    <p className="text-2xl text-primary">$87,000</p>
-                    <p className="text-xs text-muted-foreground mt-1">$290/empleado</p>
-                  </div>
-                </div>
+                ))}
               </div>
 
               <div className="mt-8 text-center">
                 <p className="text-sm text-muted-foreground mb-4">
-                  💡 Todos los planes incluyen 4 sesiones anuales por empleado + acceso a consultorios premium
+                  La propuesta se arma con base en el tamaño de tu equipo, uso esperado y modalidad de atención.
                 </p>
                 <Button
                   size="lg"
                   className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                  onClick={onEnterApp}
+                  onClick={scrollToInformationForm}
                 >
                   <DollarSign className="w-5 h-5" />
-                  Obtener Cotización Personalizada
+                  Diseñar paquete de sesiones
                 </Button>
               </div>
             </CardContent>
@@ -777,11 +846,11 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
 
           {/* Tax Deduction Note */}
           <div className="mt-8 text-center">
-            <Card className="max-w-2xl mx-auto border-[#66BB6A]/20 bg-gradient-to-br from-[#66BB6A]/5 to-transparent">
+            <Card className="max-w-2xl mx-auto border-[#4DB6AC]/20 bg-gradient-to-br from-[#4DB6AC]/5 to-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center justify-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-[#66BB6A]/10 flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6 text-[#66BB6A]" />
+                  <div className="w-12 h-12 rounded-full bg-[#4DB6AC]/10 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-[#4DB6AC]" />
                   </div>
                   <div className="text-left">
                     <p className="text-foreground">
@@ -799,16 +868,83 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
       </section>
 
 
+      {/* Implementation and FAQ */}
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-10">
+            <Card className="border-border bg-gradient-to-br from-[#062F32] to-[#0B5558] text-white overflow-hidden">
+              <CardContent className="p-8 lg:p-10">
+                <Badge className="mb-6 bg-white/12 text-white border border-white/20">
+                  Cómo iniciar
+                </Badge>
+                <h2 className="text-3xl mb-4">
+                  De la decisión al lanzamiento, sin complicarlo.
+                </h2>
+                <p className="text-white/78 mb-8 leading-relaxed">
+                  El objetivo es que RH pueda lanzar el beneficio rápido, con comunicación clara
+                  y seguimiento desde el primer mes.
+                </p>
+                <div className="space-y-4">
+                  {implementationSteps.map((step, index) => (
+                    <div key={step} className="flex items-center gap-4">
+                      <div className="w-9 h-9 rounded-full bg-white text-[#0B5558] flex items-center justify-center text-sm">
+                        {index + 1}
+                      </div>
+                      <p>{step}</p>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  onClick={scrollToInformationForm}
+                  className="mt-8 bg-[#4DB6AC] text-white hover:bg-[#26A69A] gap-2"
+                >
+                  Planear implementación
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </CardContent>
+            </Card>
+
+            <div>
+              <Badge className="mb-5 bg-primary/10 text-primary px-4 py-2">
+                Dudas frecuentes
+              </Badge>
+              <h2 className="text-4xl text-foreground mb-4">
+                Lo que una empresa suele preguntar antes de avanzar.
+              </h2>
+              <p className="text-lg text-muted-foreground mb-6">
+                Respuestas claras para RH, Dirección y Finanzas.
+              </p>
+              <Card className="border-border bg-white shadow-sm">
+                <CardContent className="p-4 sm:p-6">
+                  <Accordion type="single" collapsible className="w-full">
+                    {faqs.map((faq, index) => (
+                      <AccordionItem key={faq.question} value={`faq-${index}`}>
+                        <AccordionTrigger className="text-base text-foreground hover:no-underline">
+                          {faq.question}
+                        </AccordionTrigger>
+                        <AccordionContent className="text-muted-foreground leading-relaxed">
+                          {faq.answer}
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
 
       {/* Employee Proposal Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-[#42A5F5]/5 via-white to-[#42A5F5]/10">
+      <section className="py-20 px-6 bg-gradient-to-br from-[#4DB6AC]/5 via-white to-[#4DB6AC]/10">
         <div className="max-w-5xl mx-auto">
-          <Card className="border-2 border-[#42A5F5]/20 bg-white shadow-2xl overflow-hidden">
+          <Card className="border-2 border-[#4DB6AC]/20 bg-white shadow-2xl overflow-hidden">
             <CardContent className="p-0">
               <div className="grid grid-cols-1 lg:grid-cols-2">
                 {/* Left side - Content */}
                 <div className="p-8 lg:p-12">
-                  <Badge className="mb-6 bg-[#42A5F5]/10 text-[#42A5F5] px-4 py-2">
+                  <Badge className="mb-6 bg-[#4DB6AC]/10 text-[#4DB6AC] px-4 py-2">
                     💼 ¿Trabajas en una Empresa?
                   </Badge>
                   <h2 className="text-3xl lg:text-4xl text-foreground mb-4">
@@ -821,8 +957,8 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
 
                   <div className="space-y-4 mb-8">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#42A5F5]/10 flex items-center justify-center flex-shrink-0">
-                        <CheckCircle2 className="w-5 h-5 text-[#42A5F5]" />
+                      <div className="w-10 h-10 rounded-full bg-[#4DB6AC]/10 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle2 className="w-5 h-5 text-[#4DB6AC]" />
                       </div>
                       <div>
                         <h4 className="text-foreground mb-1">Kit de Presentación Gratis</h4>
@@ -833,8 +969,8 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
                     </div>
 
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#42A5F5]/10 flex items-center justify-center flex-shrink-0">
-                        <CheckCircle2 className="w-5 h-5 text-[#42A5F5]" />
+                      <div className="w-10 h-10 rounded-full bg-[#4DB6AC]/10 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle2 className="w-5 h-5 text-[#4DB6AC]" />
                       </div>
                       <div>
                         <h4 className="text-foreground mb-1">Email Template Listo</h4>
@@ -845,8 +981,8 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
                     </div>
 
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#42A5F5]/10 flex items-center justify-center flex-shrink-0">
-                        <CheckCircle2 className="w-5 h-5 text-[#42A5F5]" />
+                      <div className="w-10 h-10 rounded-full bg-[#4DB6AC]/10 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle2 className="w-5 h-5 text-[#4DB6AC]" />
                       </div>
                       <div>
                         <h4 className="text-foreground mb-1">Descuento Especial</h4>
@@ -860,7 +996,7 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
                   <div className="flex flex-col sm:flex-row gap-4">
                     <Button
                       size="lg"
-                      className="bg-[#42A5F5] text-white hover:bg-[#1E88E5] gap-2"
+                      className="bg-[#4DB6AC] text-white hover:bg-[#26A69A] gap-2"
                     >
                       <ArrowRight className="w-5 h-5" />
                       Descargar Kit de Presentación
@@ -868,15 +1004,15 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
                     <Button
                       size="lg"
                       variant="outline"
-                      className="border-[#42A5F5] text-[#42A5F5] hover:bg-[#42A5F5]/5"
+                      className="border-[#4DB6AC] text-[#4DB6AC] hover:bg-[#4DB6AC]/5"
                     >
                       Ver Email Template
                     </Button>
                   </div>
 
-                  <div className="mt-8 p-4 bg-[#42A5F5]/5 rounded-xl border border-[#42A5F5]/20">
+                  <div className="mt-8 p-4 bg-[#4DB6AC]/5 rounded-xl border border-[#4DB6AC]/20">
                     <p className="text-sm text-muted-foreground">
-                      <strong className="text-[#42A5F5]">🎁 Incentivo:</strong> Si tu empresa
+                      <strong className="text-[#4DB6AC]">🎁 Incentivo:</strong> Si tu empresa
                       contrata MindCare gracias a tu recomendación, recibirás un bono de
                       3 sesiones completamente gratis para ti.
                     </p>
@@ -884,7 +1020,7 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
                 </div>
 
                 {/* Right side - Visual/Stats */}
-                <div className="bg-gradient-to-br from-[#42A5F5] to-[#1E88E5] p-8 lg:p-12 text-white flex flex-col justify-center">
+                <div className="bg-gradient-to-br from-[#4DB6AC] to-[#26A69A] p-8 lg:p-12 text-white flex flex-col justify-center">
                   <h3 className="text-2xl mb-8">Por qué tu empresa dirá que SÍ:</h3>
                   
                   <div className="space-y-6">
@@ -928,6 +1064,112 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
       </section>
 
       {/* CTA Section */}
+      <section id="solicitar-informacion" className="scroll-mt-24 py-20 px-6 bg-[#F8FFFE]">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-8 items-stretch">
+            <div className="rounded-[2rem] bg-gradient-to-br from-[#062F32] to-[#0B5558] p-8 lg:p-10 text-white">
+              <Badge className="mb-6 bg-white/12 text-white border border-white/20">
+                Solicitar información
+              </Badge>
+              <h2 className="text-4xl mb-4 leading-tight">
+                Cuéntanos de tu empresa y armamos una propuesta clara.
+              </h2>
+              <p className="text-white/80 text-lg leading-relaxed mb-8">
+                Revisamos tamaño del equipo, modalidad, ubicación y objetivos de bienestar
+                para recomendar el alcance correcto.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {["Diagnóstico inicial", "Cotización", "Plan de lanzamiento"].map((item) => (
+                  <div key={item} className="rounded-2xl border border-white/12 bg-white/10 p-4">
+                    <CheckCircle2 className="w-5 h-5 text-[#8EDDD4] mb-3" />
+                    <p className="text-sm">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Card className="border-primary/10 bg-white shadow-xl shadow-primary/5">
+              <CardContent className="p-6 lg:p-8">
+                <form
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                  onSubmit={handleLeadSubmit}
+                >
+                  <label className="space-y-2">
+                    <span className="text-sm text-foreground">Nombre</span>
+                    <input
+                      required
+                      value={leadForm.name}
+                      onChange={(event) => setLeadForm({ ...leadForm, name: event.target.value })}
+                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      placeholder="Tu nombre"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm text-foreground">Empresa</span>
+                    <input
+                      required
+                      value={leadForm.company}
+                      onChange={(event) => setLeadForm({ ...leadForm, company: event.target.value })}
+                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      placeholder="Nombre de la empresa"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm text-foreground">Correo corporativo</span>
+                    <input
+                      required
+                      type="email"
+                      value={leadForm.email}
+                      onChange={(event) => setLeadForm({ ...leadForm, email: event.target.value })}
+                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      placeholder="rh@empresa.com"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm text-foreground">Número WhatsApp</span>
+                    <input
+                      value={leadForm.whatsapp}
+                      onChange={(event) => setLeadForm({ ...leadForm, whatsapp: event.target.value })}
+                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      placeholder="+52 33 1234 5678"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm text-foreground">Número de colaboradores</span>
+                    <input
+                      value={leadForm.employees}
+                      onChange={(event) => setLeadForm({ ...leadForm, employees: event.target.value })}
+                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      placeholder="Ej. 80"
+                    />
+                  </label>
+                  <label className="sm:col-span-2 space-y-2">
+                    <span className="text-sm text-foreground">¿Qué estás buscando resolver?</span>
+                    <textarea
+                      value={leadForm.message}
+                      onChange={(event) => setLeadForm({ ...leadForm, message: event.target.value })}
+                      className="min-h-28 w-full rounded-2xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                      placeholder="Cuéntanos si buscas apoyo NOM-035, sesiones para empleados, atención híbrida, reportes para RH, etc."
+                    />
+                  </label>
+                  <Button
+                    type="submit"
+                    disabled={leadSubmitting}
+                    className="sm:col-span-2 bg-primary text-white hover:bg-primary/90 gap-2"
+                  >
+                    {leadSubmitting ? "Enviando..." : "Enviar solicitud"}
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                  <p className="sm:col-span-2 text-center text-xs text-muted-foreground">
+                    Recibirás respuesta para dimensionar sesiones, cobertura y plan de lanzamiento.
+                  </p>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <Card className="border-border bg-gradient-to-br from-primary to-[#26A69A] text-white overflow-hidden relative">
@@ -936,26 +1178,26 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
             <CardContent className="p-12 relative z-10">
               <div className="text-center">
                 <h2 className="text-4xl mb-4">
-                  ¿Listo para Transformar tu Empresa?
+                  ¿Listo para evaluar MindCare para tu empresa?
                 </h2>
                 <p className="text-xl mb-8 opacity-90">
-                  Únete a las 500+ empresas que ya cuidan la salud mental de sus equipos
+                  Agenda una demo, revisa el alcance ideal y recibe una cotización clara para tu equipo.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                   <Button
                     size="lg"
-                    onClick={onEnterApp}
+                    onClick={scrollToInformationForm}
                     className="bg-white text-primary hover:bg-white/90 text-lg px-8 py-6 gap-2"
                   >
                     <Building2 className="w-5 h-5" />
-                    Ingresar al Panel
+                    Solicitar demo empresarial
                   </Button>
                   <Button
                     size="lg"
                     variant="outline"
                     className="text-lg px-8 py-6 border-white text-white hover:bg-white/10"
                   >
-                    Hablar con un Experto
+                    Hablar con un asesor
                   </Button>
                 </div>
               </div>
@@ -970,9 +1212,11 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-[#26A69A] flex items-center justify-center">
-                  <Heart className="w-6 h-6 text-white" />
-                </div>
+                <img
+                  src={mindcareIsotype}
+                  alt="MindCare"
+                  className="h-11 w-11 object-contain"
+                />
                 <h3 className="text-foreground">MindCare</h3>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -1014,6 +1258,17 @@ export function LandingPage({ onEnterApp, onApplyAsPsychologist, onGoToControlLa
           </div>
         </div>
       </footer>
+
+      <a
+        href="https://wa.me/5213312345678?text=Hola%2C%20quiero%20informaci%C3%B3n%20sobre%20MindCare%20Empresas"
+        target="_blank"
+        rel="noreferrer"
+        className="fixed bottom-6 right-6 z-50 flex h-16 w-16 items-center justify-center rounded-full bg-[#25D366] text-white shadow-2xl shadow-[#25D366]/30 transition hover:-translate-y-1 hover:bg-[#1EBE5D] focus:outline-none focus:ring-4 focus:ring-[#25D366]/25"
+        aria-label="Contactar por WhatsApp"
+        title="Contactar por WhatsApp"
+      >
+        <MessageCircle className="h-8 w-8" />
+      </a>
     </div>
   );
 }

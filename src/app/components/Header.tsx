@@ -1,5 +1,4 @@
-import { Search, Bell, ChevronDown, LogOut, User, ArrowLeft, Menu } from "lucide-react";
-import { Input } from "./ui/input";
+import { ChevronDown, LogOut, User, ArrowLeft, Menu, Moon, Sun } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -22,6 +21,10 @@ interface HeaderProps {
   onBackToAdmin?: () => void;
   onNavigate?: (section: string) => void;
   onMenuClick: () => void;
+  sidebarCollapsed?: boolean;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
+  onLogout: () => void;
 }
 
 const getPlanLabel = (plan?: string) => {
@@ -39,17 +42,31 @@ const getPlanLabel = (plan?: string) => {
   }
 };
 
-export function Header({ currentUser, onBackToAdmin, onNavigate, onMenuClick }: HeaderProps) {
+export function Header({
+  currentUser,
+  onBackToAdmin,
+  onNavigate,
+  onMenuClick,
+  sidebarCollapsed = false,
+  theme,
+  onToggleTheme,
+  onLogout,
+}: HeaderProps) {
   return (
-    <header className="h-16 bg-card border-b border-border fixed top-0 right-0 left-0 lg:left-64 z-10 px-4 md:px-6 flex items-center justify-between">
+    <header
+      className={`h-16 bg-card border-b border-border fixed top-0 right-0 left-0 ${
+        sidebarCollapsed ? "lg:left-20" : "lg:left-64"
+      } z-10 px-4 md:px-6 flex items-center justify-between transition-all duration-300`}
+    >
       {/* Left section */}
       <div className="flex items-center gap-2 md:gap-4 flex-1">
         {/* Hamburger menu for mobile */}
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden"
           onClick={onMenuClick}
+          className="lg:hidden"
+          title="Abrir menú"
         >
           <Menu className="w-5 h-5" />
         </Button>
@@ -67,32 +84,17 @@ export function Header({ currentUser, onBackToAdmin, onNavigate, onMenuClick }: 
           </Button>
         )}
 
-        {/* Search - Hidden on mobile */}
-        <div className="flex-1 max-w-md hidden md:block">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar pacientes, psicólogos, citas..."
-              className="pl-10 bg-input-background border-border/50 focus-visible:ring-primary"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Right section */}
       <div className="flex items-center gap-2 md:gap-3">
-        {/* Search icon for mobile */}
-        <Button variant="ghost" size="icon" className="md:hidden">
-          <Search className="w-5 h-5" />
-        </Button>
-
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          <Badge className="absolute -top-1 -right-1 w-5 h-5 rounded-full p-0 flex items-center justify-center bg-destructive text-destructive-foreground text-xs">
-            3
-          </Badge>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleTheme}
+          title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+        >
+          {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </Button>
 
         {/* User Menu */}
@@ -103,7 +105,7 @@ export function Header({ currentUser, onBackToAdmin, onNavigate, onMenuClick }: 
               className="flex items-center gap-2 md:gap-3 h-auto py-2 px-2 md:px-3 hover:bg-accent"
             >
               <Avatar className="w-8 h-8">
-                <AvatarImage src={currentUser.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop"} />
+                {currentUser.avatar && <AvatarImage src={currentUser.avatar} />}
                 <AvatarFallback className="bg-primary text-primary-foreground">
                   {currentUser.name.split(" ").map((n) => n[0]).join("")}
                 </AvatarFallback>
@@ -132,7 +134,7 @@ export function Header({ currentUser, onBackToAdmin, onNavigate, onMenuClick }: 
               <User className="w-4 h-4 mr-2" />
               Mi Perfil
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={onLogout}>
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar Sesión
             </DropdownMenuItem>

@@ -1,6 +1,5 @@
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { Building2 } from "lucide-react";
 import {
   startOfMonth,
   endOfMonth,
@@ -13,17 +12,20 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 import type { CalendarAppointment } from "./CalendarView";
+import type { CalendarModalityColors } from "../utils/calendarColors";
 
 interface CalendarMonthViewProps {
   currentDate: Date;
   appointments: CalendarAppointment[];
   onDayClick: (date: Date) => void;
+  modalityColors: CalendarModalityColors;
 }
 
 export function CalendarMonthView({
   currentDate,
   appointments,
   onDayClick,
+  modalityColors,
 }: CalendarMonthViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
@@ -48,8 +50,13 @@ export function CalendarMonthView({
     const dayAppointments = appointments.filter((apt) => isSameDay(apt.date, day));
     return {
       count: dayAppointments.length,
-      countNetwork: dayAppointments.filter((apt) => apt.source === "network").length,
-      status: dayAppointments.some((apt) => apt.status === "pending") ? "pending" : "confirmed",
+      presencial: dayAppointments.filter((apt) => apt.modality === "presencial").length,
+      virtual: dayAppointments.filter((apt) => apt.modality === "virtual").length,
+      status: dayAppointments.some((apt) => apt.status === "scheduled")
+        ? "scheduled"
+        : dayAppointments.some((apt) => apt.status === "cancelled")
+          ? "cancelled"
+          : "no_show",
     };
   };
 
@@ -105,23 +112,20 @@ export function CalendarMonthView({
 
                     {dayAppointments.count > 0 && isCurrentMonth && (
                       <div className="space-y-1">
-                        <Badge
-                          className={`w-full justify-center text-xs ${
-                            dayAppointments.status === "confirmed"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-[#FFB74D] text-white"
-                          }`}
-                        >
-                          {dayAppointments.count}{" "}
-                          {dayAppointments.count === 1 ? "cita" : "citas"}
-                        </Badge>
-                        {dayAppointments.countNetwork > 0 && (
+                        {dayAppointments.presencial > 0 && (
                           <Badge
-                            variant="outline"
-                            className="w-full justify-center text-xs bg-[#4DB6AC]/10 text-[#4DB6AC] border-[#4DB6AC]/20"
+                            className="w-full justify-center text-xs text-white border-transparent"
+                            style={{ backgroundColor: modalityColors.presencial }}
                           >
-                            <Building2 className="w-3 h-3 mr-1" />
-                            {dayAppointments.countNetwork} Red
+                            {dayAppointments.presencial} presencial
+                          </Badge>
+                        )}
+                        {dayAppointments.virtual > 0 && (
+                          <Badge
+                            className="w-full justify-center text-xs text-white border-transparent"
+                            style={{ backgroundColor: modalityColors.virtual }}
+                          >
+                            {dayAppointments.virtual} en línea
                           </Badge>
                         )}
                       </div>
@@ -136,16 +140,12 @@ export function CalendarMonthView({
         {/* Legend */}
         <div className="mt-4 pt-4 border-t border-border flex flex-wrap items-center gap-4 text-xs">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-primary"></div>
-            <span className="text-muted-foreground">Confirmadas</span>
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: modalityColors.presencial }}></div>
+            <span className="text-muted-foreground">Presencial</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#FFB74D]"></div>
-            <span className="text-muted-foreground">Pendientes</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Building2 className="w-3 h-3 text-[#4DB6AC]" />
-            <span className="text-muted-foreground">Pacientes de la Red</span>
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: modalityColors.virtual }}></div>
+            <span className="text-muted-foreground">En línea</span>
           </div>
         </div>
       </CardContent>

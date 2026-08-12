@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
+  ChevronDown,
+  ChevronRight,
   Download,
   FileText,
   Plus,
@@ -28,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
 import { resolvePsychologistProfileId, supabaseRest } from "../../services/api";
 
@@ -211,6 +214,76 @@ function downloadBlob(content: string, fileName: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+function textPreview(value?: string | null, maxLength = 180) {
+  const normalized = (value || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "Sin contenido capturado.";
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
+}
+
+function ParagraphText({ value }: { value?: string | null }) {
+  const paragraphs = (value || "")
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length === 0) {
+    return <p className="text-sm text-slate-500">Sin contenido.</p>;
+  }
+
+  return (
+    <div className="space-y-4 text-[15px] leading-7 text-slate-800">
+      {paragraphs.map((paragraph, index) => (
+        <p key={index} className="whitespace-pre-wrap">
+          {paragraph}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+interface ReadableSectionProps {
+  id: string;
+  title: string;
+  value?: string | null;
+  expanded: boolean;
+  onToggle: (id: string) => void;
+}
+
+function ReadableSection({ id, title, value, expanded, onToggle }: ReadableSectionProps) {
+  return (
+    <section id={id} className="rounded-lg border border-slate-200 bg-white">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 text-left"
+        onClick={() => onToggle(id)}
+      >
+        <div>
+          <h3 className="text-sm font-semibold text-[#1D4F4A]">{title}</h3>
+        </div>
+        {expanded ? (
+          <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
+        ) : (
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+        )}
+      </button>
+
+      {expanded ? (
+        <div className="px-4 py-4">
+          <ParagraphText value={value} />
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="block w-full px-4 py-4 text-left text-sm leading-6 text-slate-600 hover:bg-slate-50"
+          onClick={() => onToggle(id)}
+        >
+          {textPreview(value)}
+        </button>
+      )}
+    </section>
+  );
+}
+
 export function ClinicalRecords({ currentPsychologistId }: ClinicalRecordsProps) {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientRow[]>([]);
@@ -220,8 +293,15 @@ export function ClinicalRecords({ currentPsychologistId }: ClinicalRecordsProps)
   const [selectedNoteId, setSelectedNoteId] = useState("");
   const [formData, setFormData] = useState(emptyForm);
   const [patientSearch, setPatientSearch] = useState("");
+  const [patientPickerOpen, setPatientPickerOpen] = useState(false);
   const [documentSearch, setDocumentSearch] = useState("");
   const [entryDialogOpen, setEntryDialogOpen] = useState(false);
+  const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    contenido: true,
+    observaciones: false,
+    supervision: false,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -330,6 +410,8 @@ export function ClinicalRecords({ currentPsychologistId }: ClinicalRecordsProps)
     || visibleNotes[0]
     || patientNotes[0]
     || null;
+  const lastNote = patientNotes[0] || null;
+  const selectedNoteTitle = selectedNote?.titulo || selectedNote?.citas?.motivo_consulta || "Entrada clínica";
 
   useEffect(() => {
     if (!selectedPatientId && patients[0]?.id) {
@@ -348,9 +430,19 @@ export function ClinicalRecords({ currentPsychologistId }: ClinicalRecordsProps)
   }, [selectedNote, selectedNoteId]);
 
   const handleSelectPatient = (patientId: string) => {
+    const patient = patients.find((item) => item.id === patientId);
     setSelectedPatientId(patientId);
+    setPatientSearch(patient ? patientName(patient) : "");
+    setPatientPickerOpen(false);
     setSelectedNoteId("");
     setDocumentSearch("");
+  };
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections((current) => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
   };
 
   const openNewEntry = () => {
@@ -467,214 +559,258 @@ export function ClinicalRecords({ currentPsychologistId }: ClinicalRecordsProps)
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[300px_360px_1fr] gap-5">
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-base">Buscar paciente</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <Card className="border-border">
+        <CardContent className="p-4">
+          <div className="space-y-2">
             <div className="relative">
+              <Label>Paciente</Label>
+              <div className="relative mt-2">
+                <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-12 rounded-2xl bg-input-background pl-11"
+                  value={patientSearch}
+                  onFocus={() => setPatientPickerOpen(true)}
+                  onBlur={() => window.setTimeout(() => setPatientPickerOpen(false), 120)}
+                  onChange={(event) => {
+                    setPatientSearch(event.target.value);
+                    setPatientPickerOpen(true);
+                  }}
+                  placeholder={
+                    loading
+                      ? "Cargando pacientes..."
+                      : selectedPatient
+                        ? patientName(selectedPatient)
+                        : "Busca y selecciona un paciente"
+                  }
+                  disabled={loading}
+                />
+                {patientPickerOpen && !loading && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-y-auto rounded-2xl border border-border bg-popover p-2 shadow-xl">
+                    {filteredPatients.length > 0 ? (
+                      filteredPatients.map((patient) => (
+                        <button
+                          key={patient.id}
+                          type="button"
+                          className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent ${
+                            patient.id === selectedPatientId ? "bg-primary/10" : ""
+                          }`}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => handleSelectPatient(patient.id)}
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <UserRound className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-foreground">{patientName(patient)}</p>
+                            <p className="truncate text-xs text-muted-foreground">{patient.email || "Sin correo registrado"}</p>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-sm text-muted-foreground">
+                        No encontramos pacientes con esa búsqueda.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border">
+        <CardContent className="p-5">
+          {selectedPatient ? (
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <UserRound className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl text-foreground">{patientName(selectedPatient)}</h2>
+                  <p className="text-sm text-muted-foreground">{selectedPatient.email || "Sin correo registrado"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-md border border-border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Documentos</p>
+                  <p className="text-lg text-foreground">{patientNotes.length}</p>
+                </div>
+                <div className="rounded-md border border-border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Citas</p>
+                  <p className="text-lg text-foreground">
+                    {appointments.filter((appointment) => appointment.paciente_id === selectedPatient.id).length}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border px-3 py-2 sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Última entrada</p>
+                  <p className="truncate text-sm text-foreground">
+                    {lastNote ? formatClinicalDate(lastNote.fecha_clinica) : "Sin entradas"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              Selecciona un paciente para revisar su expediente.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border">
+        <CardHeader>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>Documentos del expediente</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Abre cualquier documento para leerlo completo y descargarlo.
+              </p>
+            </div>
+            <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="pl-9"
-                value={patientSearch}
-                onChange={(event) => setPatientSearch(event.target.value)}
-                placeholder="Nombre o correo"
+                value={documentSearch}
+                onChange={(event) => setDocumentSearch(event.target.value)}
+                placeholder="Buscar documento"
+                disabled={!selectedPatientId}
               />
             </div>
-
-            <div className="space-y-2 max-h-[620px] overflow-y-auto pr-1">
-              {loading ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">Cargando pacientes...</div>
-              ) : filteredPatients.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">No hay pacientes para mostrar.</div>
-              ) : (
-                filteredPatients.map((patient) => {
-                  const count = notes.filter((note) => note.paciente_id === patient.id).length;
-                  const isSelected = patient.id === selectedPatientId;
-
-                  return (
-                    <button
-                      key={patient.id}
-                      type="button"
-                      className={`w-full rounded-md border p-3 text-left transition-colors ${
-                        isSelected
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:bg-accent"
-                      }`}
-                      onClick={() => handleSelectPatient(patient.id)}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm text-foreground">{patientName(patient)}</p>
-                          <p className="truncate text-xs text-muted-foreground">{patient.email || "Sin correo"}</p>
-                        </div>
-                        <Badge variant="outline" className="shrink-0 text-xs">
-                          {count}
-                        </Badge>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!selectedPatientId ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">Selecciona un paciente.</div>
+          ) : visibleNotes.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              Este paciente aún no tiene documentos clínicos.
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border">
-          <CardHeader>
-            <div className="space-y-3">
-              <div>
-                <CardTitle className="text-base">Histórico</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {selectedPatient ? patientName(selectedPatient) : "Selecciona un paciente"}
-                </p>
-              </div>
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  value={documentSearch}
-                  onChange={(event) => setDocumentSearch(event.target.value)}
-                  placeholder="Buscar en histórico"
-                  disabled={!selectedPatientId}
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-[650px] overflow-y-auto pr-1">
-              {!selectedPatientId ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Selecciona un paciente.</div>
-              ) : visibleNotes.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  Este paciente aún no tiene documentos clínicos.
-                </div>
-              ) : (
-                visibleNotes.map((note) => {
-                  const isSelected = selectedNote?.id === note.id;
-                  const title = note.titulo || note.citas?.motivo_consulta || "Entrada clínica";
-
-                  return (
-                    <button
-                      key={note.id}
-                      type="button"
-                      className={`w-full rounded-md border p-3 text-left transition-colors ${
-                        isSelected
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:bg-accent"
-                      }`}
-                      onClick={() => setSelectedNoteId(note.id)}
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-2">
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {visibleNotes.map((note) => {
+                const title = note.titulo || note.citas?.motivo_consulta || "Entrada clínica";
+                return (
+                  <button
+                    key={note.id}
+                    type="button"
+                    className="grid w-full gap-3 rounded-lg border border-border p-4 text-left transition-colors hover:bg-accent/60 md:grid-cols-[160px_1fr_auto] md:items-center"
+                    onClick={() => {
+                      setSelectedNoteId(note.id);
+                      setDocumentDialogOpen(true);
+                    }}
+                  >
+                    <div>
+                      <p className="text-sm text-foreground">{formatClinicalDate(note.fecha_clinica)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatAppointment(note.citas)}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
                         <Badge variant="outline" className={typeBadgeClass(note.tipo)}>
                           {typeLabel(note.tipo)}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(`${note.fecha_clinica}T00:00:00`).toLocaleDateString("es-MX")}
-                        </span>
                       </div>
-                      <p className="line-clamp-2 text-sm text-foreground">{title}</p>
-                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{note.contenido}</p>
-                    </button>
-                  );
-                })
-              )}
+                      <p className="text-base text-foreground">{title}</p>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                        {textPreview(note.contenido, 240)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 md:justify-end">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-primary">Abrir</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </CardContent>
+      </Card>
 
-        <Card className="border-border">
-          <CardHeader>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <FileText className="w-5 h-5 text-primary" />
-                  Documento
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Vista ampliada del expediente seleccionado
-                </p>
-              </div>
-              {selectedNote && (
+      <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{selectedNoteTitle}</DialogTitle>
+            <DialogDescription>
+              {selectedNote
+                ? `${patientName(selectedNote.pacientes)} · ${formatClinicalDate(selectedNote.fecha_clinica)}`
+                : "Documento clínico"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedNote && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={typeBadgeClass(selectedNote.tipo)}>
+                    {typeLabel(selectedNote.tipo)}
+                  </Badge>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => downloadPdf(selectedNote)}>
                     <Download className="w-4 h-4" />
-                    PDF
+                    Descargar PDF
                   </Button>
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => downloadWord(selectedNote)}>
                     <Download className="w-4 h-4" />
-                    Word
+                    Descargar Word
                   </Button>
                 </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {!selectedNote ? (
-              <div className="flex min-h-[540px] items-center justify-center rounded-md border border-dashed border-border text-center text-sm text-muted-foreground">
-                Selecciona un documento del histórico para verlo completo.
               </div>
-            ) : (
-              <article className="min-h-[620px] rounded-md border border-border bg-white p-6 text-slate-900 shadow-sm">
-                <div className="flex items-start justify-between gap-6 border-b-4 border-[#26A69A] pb-4">
-                  <div>
-                    <p className="text-2xl font-semibold text-[#1D4F4A]">MindCare</p>
-                    <p className="text-xs text-slate-500">Expediente clínico confidencial</p>
-                  </div>
-                  <div className="text-right text-xs text-slate-500">
-                    Fecha de emisión<br />
-                    {new Date().toLocaleDateString("es-MX")}
-                  </div>
-                </div>
 
-                <div className="mt-8 space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className={typeBadgeClass(selectedNote.tipo)}>
-                      {typeLabel(selectedNote.tipo)}
-                    </Badge>
-                    <span className="text-sm text-slate-500">{formatClinicalDate(selectedNote.fecha_clinica)}</span>
-                  </div>
-
-                  <h2 className="text-2xl font-semibold">
-                    {selectedNote.titulo || selectedNote.citas?.motivo_consulta || "Entrada clínica"}
-                  </h2>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md bg-slate-50 p-4 text-sm">
+              <article className="rounded-md border border-border bg-slate-50 p-4 text-slate-900 shadow-sm">
+                <div className="mx-auto max-w-3xl rounded-lg bg-white p-6 shadow-sm">
+                  <div className="flex items-start justify-between gap-6 border-b-4 border-[#26A69A] pb-4">
                     <div>
-                      <p className="text-xs uppercase text-slate-500">Paciente</p>
-                      <p className="mt-1">{patientName(selectedNote.pacientes)}</p>
+                      <p className="text-2xl font-semibold text-[#1D4F4A]">MindCare</p>
+                      <p className="text-xs text-slate-500">Expediente clínico confidencial</p>
                     </div>
-                    <div>
-                      <p className="text-xs uppercase text-slate-500">Cita</p>
-                      <p className="mt-1">{formatAppointment(selectedNote.citas)}</p>
+                    <div className="text-right text-xs text-slate-500">
+                      Fecha de emisión<br />
+                      {new Date().toLocaleDateString("es-MX")}
                     </div>
                   </div>
 
-                  <section className="space-y-2">
-                    <h3 className="border-b border-slate-200 pb-1 text-sm font-semibold text-[#1D4F4A]">Resumen clínico</h3>
-                    <p className="whitespace-pre-wrap text-sm leading-6">{selectedNote.contenido}</p>
-                  </section>
+                  <div className="mt-8 space-y-6">
+                    <h2 className="text-2xl font-semibold">{selectedNoteTitle}</h2>
 
-                  {selectedNote.observaciones && (
-                    <section className="space-y-2">
-                      <h3 className="border-b border-slate-200 pb-1 text-sm font-semibold text-[#1D4F4A]">Observaciones</h3>
-                      <p className="whitespace-pre-wrap text-sm leading-6">{selectedNote.observaciones}</p>
-                    </section>
-                  )}
+                    <div className="grid grid-cols-1 gap-4 rounded-md bg-slate-50 p-4 text-sm md:grid-cols-2">
+                      <div>
+                        <p className="text-xs uppercase text-slate-500">Paciente</p>
+                        <p className="mt-1">{patientName(selectedNote.pacientes)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase text-slate-500">Cita</p>
+                        <p className="mt-1">{formatAppointment(selectedNote.citas)}</p>
+                      </div>
+                    </div>
 
-                  {selectedNote.transcripcion_supervision && (
-                    <section className="space-y-2">
-                      <h3 className="border-b border-slate-200 pb-1 text-sm font-semibold text-[#1D4F4A]">Texto para supervisión</h3>
-                      <p className="whitespace-pre-wrap text-sm leading-6">{selectedNote.transcripcion_supervision}</p>
+                    <section>
+                      <h3 className="mb-3 text-sm font-semibold text-[#1D4F4A]">Resumen clínico</h3>
+                      <ParagraphText value={selectedNote.contenido} />
                     </section>
-                  )}
+
+                    {selectedNote.observaciones && (
+                      <section>
+                        <h3 className="mb-3 text-sm font-semibold text-[#1D4F4A]">Observaciones</h3>
+                        <ParagraphText value={selectedNote.observaciones} />
+                      </section>
+                    )}
+
+                    {selectedNote.transcripcion_supervision && (
+                      <section>
+                        <h3 className="mb-3 text-sm font-semibold text-[#1D4F4A]">Texto para supervisión</h3>
+                        <ParagraphText value={selectedNote.transcripcion_supervision} />
+                      </section>
+                    )}
+                  </div>
                 </div>
               </article>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={entryDialogOpen} onOpenChange={setEntryDialogOpen}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">

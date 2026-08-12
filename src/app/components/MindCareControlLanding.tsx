@@ -2,68 +2,108 @@ import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
 import {
-  Heart,
   Clock,
   Users,
   DollarSign,
-  TrendingUp,
-  Shield,
-  Video,
   CheckCircle2,
   ArrowRight,
   Calendar,
   FileText,
   BarChart3,
-  Bell,
-  Smartphone,
   Zap,
   GraduationCap,
   Star,
+  Building2,
+  Shield,
+  UserCheck,
+  Wallet,
 } from "lucide-react";
+import mindcareIsotype from "../../assets/mindcare-isotype.png";
+import psychologistDevicesMockup from "../../assets/mindcare-psychologist-devices.png";
 
 interface MindCareControlLandingProps {
   onEnterApp: () => void;
   onGoToEnterpriseLanding: () => void;
   onShowAuth: () => void;
+  onApplyAsPsychologist: () => void;
+  onOpenDirectory?: () => void;
 }
 
 const systemFeatures = [
   {
     icon: Calendar,
-    title: "Calendario Inteligente",
-    description: "Gestiona tu agenda con vistas mensual/semanal, recordatorios automáticos y sincronización",
-    color: "bg-[#7E57C2]",
+    title: "Agenda profesional",
+    description: "Crea citas, repítelas semanalmente, arrástralas en calendario y evita cruces de horario.",
+    color: "bg-primary",
   },
   {
     icon: Users,
-    title: "Expedientes Digitales",
-    description: "Crea y administra expedientes de pacientes con notas privadas, historial completo y búsqueda rápida",
-    color: "bg-[#9575CD]",
+    title: "Pacientes y saldos",
+    description: "Consulta datos clínicos, tarifa sugerida, saldo, pagos y preferencias de comunicación por paciente.",
+    color: "bg-[#26A69A]",
+  },
+  {
+    icon: FileText,
+    title: "Expedientes claros",
+    description: "Organiza documentos y notas por paciente, con vista cómoda y descarga en PDF o Word.",
+    color: "bg-[#0B5558]",
   },
   {
     icon: DollarSign,
-    title: "Control Financiero",
-    description: "Registra pagos, genera reportes de ingresos, y lleva el control total de tu facturación",
-    color: "bg-[#BA68C8]",
+    title: "Pagos simples",
+    description: "Registra ingresos de citas, anticipos y consulta saldos a favor o pendientes sin hojas externas.",
+    color: "bg-[#4DB6AC]",
   },
   {
     icon: BarChart3,
-    title: "Reportes & Métricas",
-    description: "Visualiza estadísticas de tu práctica, tendencias de citas y análisis de crecimiento",
-    color: "bg-[#AB47BC]",
+    title: "Reportes accionables",
+    description: "Revisa lo pagado, lo pendiente y el resumen mensual por paciente con detalle de cada cita.",
+    color: "bg-[#80CBC4]",
   },
   {
-    icon: Bell,
-    title: "Recordatorios Automáticos",
-    description: "Sistema de notificaciones para citas, seguimientos y tareas pendientes",
-    color: "bg-[#8E24AA]",
+    icon: Building2,
+    title: "Consultorios reales",
+    description: "Administra consultorios, define uno principal y úsalo automáticamente al agendar.",
+    color: "bg-[#00695C]",
+  },
+];
+
+const valuePillars = [
+  {
+    icon: Clock,
+    title: "Menos administración",
+    description: "Agenda, pagos, saldos y notas viven en el mismo flujo. Menos hojas, chats y recordatorios manuales.",
   },
   {
-    icon: Video,
-    title: "Sesiones Virtuales",
-    description: "Gestiona citas presenciales y en línea en un solo lugar con enlaces de videollamada",
-    color: "bg-[#7B1FA2]",
+    icon: UserCheck,
+    title: "Más claridad por paciente",
+    description: "Cada paciente conserva tarifa, saldo, expediente, pagos y preferencias en un solo lugar.",
   },
+  {
+    icon: Wallet,
+    title: "Dinero bajo control",
+    description: "Sabes qué cita está pagada, qué paciente debe y cuánto ingresó en el mes.",
+  },
+  {
+    icon: Shield,
+    title: "Pensado para consulta clínica",
+    description: "No es un CRM genérico: está diseñado alrededor de citas, expedientes y seguimiento terapéutico.",
+  },
+];
+
+const dailyFlow = [
+  "Revisa tu agenda del día",
+  "Crea o mueve citas sin cruces",
+  "Consulta expediente antes de sesión",
+  "Registra pago y nota clínica",
+  "Ve reportes por paciente o mes",
+];
+
+const affiliateBenefits = [
+  "Sistema 100% gratis sin límite de citas mientras estés afiliado",
+  "Referidos de empresas y pacientes dentro del ecosistema MindCare",
+  "Perfil profesional visible para nuevas oportunidades",
+  "Operación centralizada de agenda, pagos y seguimiento",
 ];
 
 const pricingTiers = [
@@ -73,14 +113,14 @@ const pricingTiers = [
     price: "0",
     perAppointment: "Gratis",
     features: [
-      "Todas las funciones del sistema",
-      "Calendario completo",
-      "Gestión de pacientes ilimitada",
+      "Agenda y calendario",
+      "Pacientes ilimitados",
+      "Expedientes clínicos",
+      "Pagos e ingresos",
       "Reportes básicos",
-      "Notificaciones por email",
     ],
     badge: "Ideal para comenzar",
-    badgeColor: "bg-[#66BB6A]/10 text-[#66BB6A]",
+    badgeColor: "bg-[#4DB6AC]/10 text-[#00695C]",
   },
   {
     range: "11-20",
@@ -89,13 +129,13 @@ const pricingTiers = [
     perAppointment: "$7.50 por cita",
     features: [
       "Todo del plan anterior",
-      "Recordatorios automáticos",
+      "Feed iCal para calendario",
       "Reportes avanzados",
       "Notas clínicas ilimitadas",
       "Soporte prioritario",
     ],
     badge: "Más popular",
-    badgeColor: "bg-[#7E57C2]/10 text-[#7E57C2]",
+    badgeColor: "bg-primary/10 text-primary",
     popular: true,
   },
   {
@@ -111,7 +151,7 @@ const pricingTiers = [
       "Estadísticas detalladas",
     ],
     badge: "Profesional",
-    badgeColor: "bg-[#FF9800]/10 text-[#FF9800]",
+    badgeColor: "bg-[#0B5558]/10 text-[#0B5558]",
   },
   {
     range: "51+",
@@ -126,7 +166,7 @@ const pricingTiers = [
       "Soporte dedicado",
     ],
     badge: "Alto volumen",
-    badgeColor: "bg-[#4DB6AC]/10 text-[#4DB6AC]",
+    badgeColor: "bg-[#062F32]/10 text-[#062F32]",
   },
 ];
 
@@ -136,21 +176,21 @@ const testimonials = [
     specialty: "Psicóloga Clínica",
     avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
     rating: 5,
-    text: "MindCare Control cambió mi práctica. Antes llevaba todo en papel y era un caos. Ahora tengo todo digitalizado, organizado y profesional.",
+    text: "MindCare me ayudó a ordenar agenda, pacientes y pagos en un solo flujo. El consultorio se siente mucho más profesional.",
   },
   {
     name: "Dr. Roberto Sánchez",
     specialty: "Terapeuta Familiar",
     avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
     rating: 5,
-    text: "La gestión de pagos es increíble. Puedo ver exactamente cuánto he facturado cada mes y mis pacientes nunca olvidan pagar gracias a los recordatorios.",
+    text: "La parte de pagos y reportes me ahorra muchísimo tiempo. En segundos sé qué paciente pagó, qué debe y qué citas vienen.",
   },
   {
     name: "Lic. Ana Martínez",
     specialty: "Psicóloga Infantil",
     avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
     rating: 5,
-    text: "Empecé con el plan gratis y conforme crecí fui subiendo. El sistema es tan intuitivo que no necesité capacitación. Totalmente recomendado.",
+    text: "La agenda y los expedientes son fáciles de usar. Puedo atender, documentar y cobrar sin brincar entre herramientas.",
   },
 ];
 
@@ -158,22 +198,29 @@ export function MindCareControlLanding({
   onEnterApp,
   onGoToEnterpriseLanding,
   onShowAuth,
+  onApplyAsPsychologist,
+  onOpenDirectory,
 }: MindCareControlLandingProps) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#F3E5F5] to-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#F8FFFE] via-white to-[#E0F7FA]">
       {/* Header/Navbar */}
-      <header className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-b border-border z-50">
+      <header className="fixed top-0 left-0 right-0 bg-white/85 backdrop-blur-lg border-b border-border z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#7E57C2] to-[#9575CD] flex items-center justify-center">
-              <Heart className="w-6 h-6 text-white" />
-            </div>
+            <img src={mindcareIsotype} alt="MindCare" className="h-12 w-12 object-contain" />
             <div>
-              <h1 className="text-xl text-foreground">MindCare Control</h1>
-              <p className="text-xs text-muted-foreground">Sistema de Gestión para Psicólogos</p>
+              <p className="text-lg text-foreground leading-none">MindCare</p>
+              <p className="text-xs text-muted-foreground">Software para psicólogos</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              onClick={onOpenDirectory}
+              className="hidden md:inline-flex text-muted-foreground hover:text-foreground"
+            >
+              Directorio
+            </Button>
             <Button
               variant="ghost"
               onClick={onGoToEnterpriseLanding}
@@ -182,8 +229,16 @@ export function MindCareControlLanding({
               Para Empresas
             </Button>
             <Button
+              variant="outline"
+              onClick={onApplyAsPsychologist}
+              className="hidden sm:inline-flex border-primary text-primary hover:bg-primary/5 gap-2"
+            >
+              <GraduationCap className="w-4 h-4" />
+              Únete a la red
+            </Button>
+            <Button
               onClick={onShowAuth}
-              className="bg-[#7E57C2] text-white hover:bg-[#7E57C2]/90 gap-2"
+              className="bg-primary text-white hover:bg-primary/90 gap-2"
             >
               Ingresar
               <ArrowRight className="w-4 h-4" />
@@ -197,168 +252,60 @@ export function MindCareControlLanding({
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <Badge className="mb-6 bg-[#7E57C2]/10 text-[#7E57C2] px-4 py-2">
-                💼 Sistema de Gestión Profesional
+              <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2">
+                Software creado para psicólogos
               </Badge>
               <h2 className="text-5xl md:text-6xl text-foreground mb-6">
-                Tu Consultorio, Organizado y Digital
+                Tu consulta en orden, sin perder lo humano
               </h2>
               <p className="text-xl text-muted-foreground mb-8">
-                Agenda, pacientes, pagos y reportes en un solo lugar. 
-                Sistema diseñado específicamente para psicólogos independientes.
+                MindCare centraliza agenda, pacientes, expedientes, pagos y reportes
+                para que administres menos y atiendas mejor.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <Button
                   onClick={onShowAuth}
                   size="lg"
-                  className="bg-[#7E57C2] text-white hover:bg-[#7E57C2]/90 gap-2"
+                  className="bg-primary text-white hover:bg-primary/90 gap-2"
                 >
                   <Zap className="w-5 h-5" />
-                  Comenzar Gratis
+                  Crear cuenta gratis
                 </Button>
                 <Button
                   onClick={onShowAuth}
                   variant="outline"
                   size="lg"
-                  className="border-[#7E57C2] text-[#7E57C2] hover:bg-[#7E57C2]/5"
+                  className="border-primary text-primary hover:bg-primary/5"
                 >
                   Iniciar Sesión
                 </Button>
               </div>
               <div className="flex items-center gap-6 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-[#66BB6A]" />
+                  <CheckCircle2 className="w-5 h-5 text-[#4DB6AC]" />
                   <span>Sin tarjeta de crédito</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-[#66BB6A]" />
-                  <span>Cancela cuando quieras</span>
+                  <CheckCircle2 className="w-5 h-5 text-[#4DB6AC]" />
+                  <span>Gratis hasta 10 citas/mes</span>
                 </div>
               </div>
             </div>
             
-            {/* Dashboard Preview */}
+            {/* Multi-device Product Mockup */}
             <div className="relative">
-              <div className="rounded-3xl bg-gradient-to-br from-[#7E57C2]/20 to-[#9575CD]/20 p-6 backdrop-blur">
-                {/* Main Dashboard Card */}
-                <Card className="border-2 border-[#7E57C2]/20 bg-white shadow-2xl overflow-hidden">
-                  <CardContent className="p-0">
-                    {/* Header */}
-                    <div className="bg-gradient-to-r from-[#7E57C2] to-[#9575CD] p-4 text-white">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm opacity-90">Panel de Control</p>
-                          <p className="text-xs opacity-75">Miércoles, 15 Oct 2025</p>
-                        </div>
-                        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                          <Heart className="w-4 h-4" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-3 gap-3 p-4 bg-gradient-to-b from-[#7E57C2]/5 to-transparent">
-                      <div className="bg-white rounded-lg p-3 border border-[#7E57C2]/10 text-center">
-                        <Calendar className="w-5 h-5 text-[#7E57C2] mx-auto mb-1" />
-                        <p className="text-xs text-muted-foreground mb-1">Hoy</p>
-                        <p className="text-lg text-foreground">5</p>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-[#66BB6A]/10 text-center">
-                        <Users className="w-5 h-5 text-[#66BB6A] mx-auto mb-1" />
-                        <p className="text-xs text-muted-foreground mb-1">Pacientes</p>
-                        <p className="text-lg text-foreground">34</p>
-                      </div>
-                      <div className="bg-white rounded-lg p-3 border border-[#FF9800]/10 text-center">
-                        <DollarSign className="w-5 h-5 text-[#FF9800] mx-auto mb-1" />
-                        <p className="text-xs text-muted-foreground mb-1">Mes</p>
-                        <p className="text-lg text-foreground">$12K</p>
-                      </div>
-                    </div>
-
-                    {/* Appointments Section */}
-                    <div className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-[#7E57C2]" />
-                          <p className="text-sm text-foreground">Citas de Hoy</p>
-                        </div>
-                        <Badge variant="secondary" className="text-xs">
-                          5 programadas
-                        </Badge>
-                      </div>
-                      <div className="space-y-2">
-                        {[
-                          { time: "10:00", name: "Ana María G.", status: "Confirmada" },
-                          { time: "12:00", name: "Luis H.", status: "En espera" },
-                        ].map((apt, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-3 p-2 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors"
-                          >
-                            <div className="w-8 h-8 rounded-full bg-[#7E57C2]/10 flex items-center justify-center flex-shrink-0">
-                              <Users className="w-4 h-4 text-[#7E57C2]" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-foreground truncate">
-                                {apt.name}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {apt.time} AM
-                              </p>
-                            </div>
-                            <div className="w-2 h-2 rounded-full bg-[#66BB6A] flex-shrink-0" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Quick Actions Grid */}
-                    <div className="p-4 pt-2 border-t border-border/50">
-                      <p className="text-xs text-muted-foreground mb-3">
-                        Acciones Rápidas
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 text-xs h-auto py-2 border-[#7E57C2]/20 hover:bg-[#7E57C2]/5"
-                        >
-                          <Users className="w-3 h-3" />
-                          Nuevo Paciente
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 text-xs h-auto py-2 border-[#FF9800]/20 hover:bg-[#FF9800]/5"
-                        >
-                          <DollarSign className="w-3 h-3" />
-                          Registrar Pago
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 text-xs h-auto py-2 border-[#42A5F5]/20 hover:bg-[#42A5F5]/5"
-                        >
-                          <Bell className="w-3 h-3" />
-                          Recordatorios
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 text-xs h-auto py-2 border-[#66BB6A]/20 hover:bg-[#66BB6A]/5"
-                        >
-                          <BarChart3 className="w-3 h-3" />
-                          Ver Reportes
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Floating notification badge */}
-                <div className="absolute -top-2 -right-2 bg-[#FF9800] text-white rounded-full p-3 shadow-xl animate-pulse">
-                  <Bell className="w-4 h-4" />
-                </div>
+              <div className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-br from-primary/10 via-[#E0F7FA] to-white blur-2xl" />
+              <div className="relative overflow-hidden rounded-[2rem] border border-primary/10 bg-gradient-to-br from-[#F8FFFE] via-white to-[#E0F7FA] shadow-2xl">
+                <img
+                  src={psychologistDevicesMockup}
+                  alt="MindCare operando en laptop, iPad y iPhone"
+                  className="w-full object-cover mix-blend-multiply"
+                />
+              </div>
+              <div className="relative z-10 -mt-6 text-center">
+                <Badge className="bg-white/95 text-primary shadow-lg border border-primary/15">
+                  Opera desde laptop, iPad o iPhone
+                </Badge>
               </div>
             </div>
           </div>
@@ -370,14 +317,14 @@ export function MindCareControlLanding({
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
-              { value: "2,000+", label: "Psicólogos Activos" },
-              { value: "50K+", label: "Citas Gestionadas" },
-              { value: "4.9/5", label: "Calificación" },
-              { value: "99%", label: "Uptime" },
+              { value: "Agenda", label: "Día, semana y mes" },
+              { value: "Pacientes", label: "Saldo, tarifa y expediente" },
+              { value: "Pagos", label: "Ingresos y anticipos" },
+              { value: "Reportes", label: "Mes, año y paciente" },
             ].map((stat, index) => (
               <Card key={index} className="border-border bg-white text-center">
                 <CardContent className="p-6">
-                  <p className="text-4xl text-[#7E57C2] mb-2">{stat.value}</p>
+                  <p className="text-3xl text-primary mb-2">{stat.value}</p>
                   <p className="text-sm text-muted-foreground">{stat.label}</p>
                 </CardContent>
               </Card>
@@ -386,12 +333,51 @@ export function MindCareControlLanding({
         </div>
       </section>
 
+      {/* Value Pillars */}
+      <section className="py-20 px-6 bg-gradient-to-br from-primary/5 via-white to-[#E0F2F1]">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-10 items-start">
+            <div>
+              <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2">
+                Pensado en tu práctica
+              </Badge>
+              <h2 className="text-4xl text-foreground mb-4 leading-tight">
+                El valor no es tener más pantallas. Es trabajar con menos fricción.
+              </h2>
+              <p className="text-xl text-muted-foreground leading-relaxed">
+                Un psicólogo necesita rapidez, orden y contexto. MindCare junta lo operativo
+                y lo clínico en una experiencia simple para consulta privada.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {valuePillars.map((pillar) => {
+                const Icon = pillar.icon;
+                return (
+                  <Card key={pillar.title} className="border-border bg-white shadow-sm hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+                        <Icon className="w-6 h-6 text-primary" />
+                      </div>
+                      <h3 className="text-lg text-foreground mb-2">{pillar.title}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {pillar.description}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <Badge className="mb-6 bg-[#7E57C2]/10 text-[#7E57C2] px-4 py-2">
-              ⚡ Funcionalidades Completas
+            <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2">
+              Funciones del día a día
             </Badge>
             <h2 className="text-4xl text-foreground mb-4">
               Todo lo que Necesitas en un Solo Lugar
@@ -405,13 +391,13 @@ export function MindCareControlLanding({
             {systemFeatures.map((feature, index) => (
               <Card
                 key={index}
-                className="border-[#7E57C2]/20 bg-white hover:shadow-xl transition-all"
+                className="border-primary/20 bg-white hover:shadow-xl transition-all"
               >
                 <CardContent className="p-6">
                   <div
                     className={`w-12 h-12 rounded-xl ${feature.color} bg-opacity-10 flex items-center justify-center mb-4`}
                   >
-                    <feature.icon className="w-6 h-6 text-[#7E57C2]" />
+                    <feature.icon className="w-6 h-6 text-primary" />
                   </div>
                   <h3 className="text-lg text-foreground mb-2">
                     {feature.title}
@@ -426,12 +412,55 @@ export function MindCareControlLanding({
         </div>
       </section>
 
+      {/* Daily Flow */}
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-10 items-center">
+            <div>
+              <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2">
+                En una jornada real
+              </Badge>
+              <h2 className="text-4xl text-foreground mb-4 leading-tight">
+                Del primer paciente del día al cierre de ingresos.
+              </h2>
+              <p className="text-xl text-muted-foreground leading-relaxed mb-8">
+                MindCare acompaña el flujo completo de tu consulta: antes, durante y después
+                de cada sesión.
+              </p>
+              <Button
+                onClick={onShowAuth}
+                size="lg"
+                className="bg-primary text-white hover:bg-primary/90 gap-2"
+              >
+                Probar flujo completo
+                <ArrowRight className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <Card className="border-border bg-[#062F32] text-white overflow-hidden">
+              <CardContent className="p-8">
+                <div className="space-y-4">
+                  {dailyFlow.map((step, index) => (
+                    <div key={step} className="flex items-center gap-4 rounded-2xl bg-white/10 border border-white/10 p-4">
+                      <div className="w-10 h-10 rounded-full bg-[#4DB6AC] flex items-center justify-center text-sm">
+                        {index + 1}
+                      </div>
+                      <p>{step}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-[#7E57C2]/5 via-white to-[#7E57C2]/10">
+      <section className="py-20 px-6 bg-gradient-to-br from-[#0B5558]/5 via-white to-[#E0F7FA]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <Badge className="mb-6 bg-[#7E57C2]/10 text-[#7E57C2] px-4 py-2">
-              💰 Precios Transparentes
+            <Badge className="mb-6 bg-primary/10 text-primary px-4 py-2">
+              Precios transparentes
             </Badge>
             <h2 className="text-4xl text-foreground mb-4">
               Paga Solo por lo que Usas
@@ -446,11 +475,11 @@ export function MindCareControlLanding({
               <Card
                 key={index}
                 className={`border-2 bg-white relative overflow-hidden transition-all hover:shadow-2xl ${
-                  tier.popular ? "border-[#7E57C2] scale-[1.02]" : "border-border"
+                  tier.popular ? "border-primary scale-[1.02]" : "border-border"
                 }`}
               >
                 {tier.popular && (
-                  <div className="absolute top-0 right-0 bg-[#7E57C2] text-white px-4 py-1 text-sm">
+                  <div className="absolute top-0 right-0 bg-primary text-white px-4 py-1 text-sm">
                     {tier.badge}
                   </div>
                 )}
@@ -469,7 +498,7 @@ export function MindCareControlLanding({
                   <ul className="space-y-3 mb-6">
                     {tier.features.map((feature, i) => (
                       <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-[#66BB6A] flex-shrink-0 mt-0.5" />
+                        <CheckCircle2 className="w-4 h-4 text-[#4DB6AC] flex-shrink-0 mt-0.5" />
                         <span className="text-xs text-muted-foreground">{feature}</span>
                       </li>
                     ))}
@@ -479,7 +508,7 @@ export function MindCareControlLanding({
                     onClick={onShowAuth}
                     className={`w-full ${
                       tier.popular
-                        ? "bg-[#7E57C2] text-white hover:bg-[#7E57C2]/90"
+                        ? "bg-primary text-white hover:bg-primary/90"
                         : ""
                     }`}
                     variant={tier.popular ? "default" : "outline"}
@@ -491,68 +520,51 @@ export function MindCareControlLanding({
             ))}
           </div>
 
-          {/* Enterprise CTA */}
-          <Card className="max-w-4xl mx-auto border-2 border-[#FF9800]/20 bg-gradient-to-br from-white to-[#FF9800]/5 overflow-hidden">
+          {/* Affiliate CTA */}
+          <Card className="max-w-4xl mx-auto border-2 border-[#0B5558]/20 bg-gradient-to-br from-white to-[#E0F7FA] overflow-hidden">
             <CardContent className="p-0">
               <div className="grid grid-cols-1 lg:grid-cols-2">
                 <div className="p-8 lg:p-10">
-                  <Badge className="mb-4 bg-[#FF9800]/10 text-[#FF9800]">
-                    🎯 ¿Buscas Más Pacientes?
+                  <Badge className="mb-4 bg-[#0B5558]/10 text-[#0B5558]">
+                    Opción afiliado
                   </Badge>
                   <h3 className="text-2xl text-foreground mb-3">
-                    Únete a MindCare Afiliado
+                    Usa el software gratis si formas parte de la red MindCare.
                   </h3>
                   <p className="text-muted-foreground mb-6">
-                    Como psicólogo afiliado a nuestra red, obtienes:
+                    La afiliación es para psicólogos que quieren recibir pacientes del ecosistema
+                    MindCare y operar su consulta desde la misma plataforma.
                   </p>
                   <ul className="space-y-3 mb-6">
-                    <li className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-[#66BB6A] flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-foreground">
-                        <strong>Sistema 100% gratis</strong> sin límites de citas
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-[#66BB6A] flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-foreground">
-                        <strong>Referidos constantes</strong> de empresas afiliadas
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-[#66BB6A] flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-foreground">
-                        <strong>Perfil público</strong> en nuestro directorio
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-[#66BB6A] flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-foreground">
-                        <strong>Consultorios premium</strong> disponibles en GDL
-                      </span>
-                    </li>
+                    {affiliateBenefits.map((benefit) => (
+                      <li key={benefit} className="flex items-start gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-[#4DB6AC] flex-shrink-0 mt-0.5" />
+                        <span className="text-sm text-foreground">{benefit}</span>
+                      </li>
+                    ))}
                   </ul>
                   <Button
-                    onClick={onGoToEnterpriseLanding}
+                    onClick={onApplyAsPsychologist}
                     size="lg"
-                    className="w-full bg-[#FF9800] text-white hover:bg-[#FF9800]/90 gap-2"
+                    className="w-full bg-[#0B5558] text-white hover:bg-[#0B5558]/90 gap-2"
                   >
                     <GraduationCap className="w-5 h-5" />
-                    Conocer MindCare Afiliado
+                    Únete a la red MindCare
                   </Button>
                   <p className="text-xs text-muted-foreground mt-4 text-center">
-                    Solo el 8% de aplicantes son aceptados
+                    La afiliación requiere validación de perfil profesional.
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-[#FF9800]/10 to-[#FF9800]/5 p-8 lg:p-10 flex items-center justify-center">
+                <div className="bg-gradient-to-br from-[#E0F7FA] to-white p-8 lg:p-10 flex items-center justify-center">
                   <div className="text-center">
                     <div className="w-24 h-24 rounded-full bg-white shadow-xl flex items-center justify-center mx-auto mb-6">
-                      <Heart className="w-12 h-12 text-[#FF9800]" />
+                      <img src={mindcareIsotype} alt="MindCare" className="h-20 w-20 object-contain" />
                     </div>
                     <p className="text-foreground mb-2">
-                      Red de Psicólogos Elite
+                      Red profesional verificada
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      500+ empresas confían en nosotros
+                      Directorio, referidos y operación en un mismo ecosistema
                     </p>
                   </div>
                 </div>
@@ -595,7 +607,7 @@ export function MindCareControlLanding({
                     {[...Array(testimonial.rating)].map((_, i) => (
                       <Star
                         key={i}
-                        className="w-4 h-4 fill-[#FFB74D] text-[#FFB74D]"
+                        className="w-4 h-4 fill-[#4DB6AC] text-[#4DB6AC]"
                       />
                     ))}
                   </div>
@@ -610,19 +622,19 @@ export function MindCareControlLanding({
       </section>
 
       {/* Final CTA */}
-      <section className="py-20 px-6 bg-gradient-to-br from-[#7E57C2] to-[#9575CD] text-white">
+      <section className="py-20 px-6 bg-gradient-to-br from-[#0B5558] to-[#4DB6AC] text-white">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl md:text-5xl mb-6">
             Empieza a Organizar tu Práctica Hoy
           </h2>
           <p className="text-xl opacity-90 mb-8">
-            Únete a más de 2,000 psicólogos que ya usan MindCare Control
+            Únete a psicólogos que ya usan MindCare para operar mejor su consulta
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               onClick={onShowAuth}
               size="lg"
-              className="bg-white text-[#7E57C2] hover:bg-white/90 gap-2"
+              className="bg-white text-primary hover:bg-white/90 gap-2"
             >
               <Zap className="w-5 h-5" />
               Comenzar Gratis - Sin Tarjeta

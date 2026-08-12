@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "MindCare Psicologo",
+    "slug": "mindcare-psicologo",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "jsEngine": "jsc",
+    "plugins": [
+      "expo-notifications"
+    ],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "mx.mindcare.psicologo"
+    },
+    "android": {
+      "package": "mx.mindcare.psicologo",
+      "adaptiveIcon": {
+        "backgroundColor": "#4DB6AC"
+      }
+    },
+    "extra": {
+      "supabaseUrl": "https://ssnfoheivrzhbfsrnswi.supabase.co",
+      "supabaseAnonKey": "sb_publishable_LwDAFknte9hiBU1fs9os9g_jr-_YHxM"
+    }
+  }
+}

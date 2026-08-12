@@ -20,6 +20,7 @@ import {
   Edit,
   XCircle,
   CheckCircle2,
+  ReceiptText,
 } from "lucide-react";
 import { AppointmentModal } from "./AppointmentModal";
 import {
@@ -44,21 +45,39 @@ interface AppointmentDetailModalProps {
 }
 
 const statusConfig = {
-  confirmed: {
-    label: "Confirmada",
-    color: "bg-[#81C784] text-white",
+  scheduled: {
+    label: "Agendada",
+    color: "bg-blue-600 text-white",
     icon: CheckCircle2,
-  },
-  pending: {
-    label: "Pendiente",
-    color: "bg-[#FFB74D] text-white",
-    icon: Clock,
   },
   cancelled: {
     label: "Cancelada",
     color: "bg-destructive text-destructive-foreground",
     icon: XCircle,
   },
+  no_show: {
+    label: "No asistió",
+    color: "bg-muted text-muted-foreground",
+    icon: XCircle,
+  },
+};
+
+const formatMoney = (amountCents?: number | null) =>
+  new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 0,
+  }).format((amountCents || 0) / 100);
+
+const formatLongDate = (value?: string | null) => {
+  if (!value) return "Sin fecha registrada";
+
+  return new Date(value).toLocaleDateString("es-MX", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 };
 
 export function AppointmentDetailModal({
@@ -71,17 +90,21 @@ export function AppointmentDetailModal({
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
-  if (!appointment) return null;
+  const activeAppointment = appointment || editingAppointment;
 
-  const status = statusConfig[appointment.status as keyof typeof statusConfig];
+  if (!activeAppointment) return null;
+
+  const status = statusConfig[activeAppointment.status as keyof typeof statusConfig] || statusConfig.scheduled;
   const StatusIcon = status.icon;
+  const payments = activeAppointment.payments || [];
 
   const handleCancel = async () => {
     setCancelling(true);
 
     try {
-      await supabaseRest(`/citas?id=eq.${appointment.id}`, {
+      await supabaseRest(`/citas?id=eq.${activeAppointment.id}`, {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
         body: JSON.stringify({
@@ -103,6 +126,7 @@ export function AppointmentDetailModal({
   };
 
   const handleReschedule = () => {
+    setEditingAppointment(activeAppointment);
     setRescheduleModalOpen(true);
     onClose();
   };
@@ -126,14 +150,14 @@ export function AppointmentDetailModal({
                   <StatusIcon className="w-4 h-4" />
                   {status.label}
                 </Badge>
-                {appointment.source === "network" && (
+                {activeAppointment.source === "network" && (
                   <Badge className="bg-[#4DB6AC]/10 text-[#4DB6AC] border-[#4DB6AC]/20">
                     <Building2 className="w-3 h-3 mr-1" />
                     Red MindCare
                   </Badge>
                 )}
               </div>
-              {appointment.paid && (
+              {activeAppointment.paid && (
                 <Badge className="bg-[#81C784] text-white">Pagado</Badge>
               )}
             </div>
@@ -147,10 +171,10 @@ export function AppointmentDetailModal({
                 Paciente
               </Label>
               <div className="pl-6">
-                <p className="text-foreground">{appointment.patient}</p>
-                {appointment.source === "network" && appointment.company && (
+                <p className="text-foreground">{activeAppointment.patient}</p>
+                {activeAppointment.source === "network" && activeAppointment.company && (
                   <p className="text-sm text-muted-foreground mt-1">
-                    {appointment.company}
+                    {activeAppointment.company}
                   </p>
                 )}
               </div>
@@ -162,7 +186,7 @@ export function AppointmentDetailModal({
                 <User className="w-4 h-4" />
                 Psicólogo
               </Label>
-              <p className="text-foreground pl-6">{appointment.psychologist}</p>
+              <p className="text-foreground pl-6">{activeAppointment.psychologist}</p>
             </div>
 
             {/* Date and Time */}
@@ -173,7 +197,7 @@ export function AppointmentDetailModal({
                   Fecha
                 </Label>
                 <p className="text-foreground pl-6">
-                  {new Date(appointment.date).toLocaleDateString("es-ES", {
+                  {new Date(activeAppointment.date).toLocaleDateString("es-ES", {
                     weekday: "long",
                     day: "2-digit",
                     month: "long",
@@ -186,7 +210,7 @@ export function AppointmentDetailModal({
                   <Clock className="w-4 h-4" />
                   Hora
                 </Label>
-                <p className="text-foreground pl-6">{appointment.time}</p>
+                <p className="text-foreground pl-6">{activeAppointment.time}</p>
               </div>
             </div>
 
@@ -196,7 +220,7 @@ export function AppointmentDetailModal({
                 <Clock className="w-4 h-4" />
                 Duración
               </Label>
-              <p className="text-foreground pl-6">{appointment.duration || 60} minutos</p>
+              <p className="text-foreground pl-6">{activeAppointment.duration || 60} minutos</p>
             </div>
 
             {/* Office */}
@@ -205,19 +229,19 @@ export function AppointmentDetailModal({
                 <Building2 className="w-4 h-4" />
                 Consultorio
               </Label>
-              <p className="text-foreground pl-6">{appointment.office}</p>
+              <p className="text-foreground pl-6">{activeAppointment.office}</p>
             </div>
 
             {/* Amount */}
-            {appointment.amount && (
+            {activeAppointment.amount && (
               <div className="space-y-2">
                 <Label className="text-muted-foreground flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
                   Monto
                 </Label>
                 <div className="pl-6">
-                  <p className="text-foreground text-xl">${appointment.amount} MXN</p>
-                  {appointment.source === "network" && (
+                  <p className="text-foreground text-xl">${activeAppointment.amount} MXN</p>
+                  {activeAppointment.source === "network" && (
                     <p className="text-sm text-[#4DB6AC] mt-1">
                       Pago por MindCare • Corte semanal
                     </p>
@@ -225,10 +249,73 @@ export function AppointmentDetailModal({
                 </div>
               </div>
             )}
+
+            {activeAppointment.paid && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <Label className="text-muted-foreground flex items-center gap-2">
+                    <ReceiptText className="w-4 h-4" />
+                    Pago aplicado a esta cita
+                  </Label>
+
+                  {payments.length > 0 ? (
+                    <div className="space-y-3">
+                      {payments.map((payment: any) => (
+                        <div
+                          key={payment.id}
+                          className="rounded-lg border border-border bg-muted/20 p-4"
+                        >
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Cuándo me pagaron</p>
+                              <p className="text-sm text-foreground">
+                                {formatLongDate(payment.incomeDate || payment.paidAt)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">De qué pago es</p>
+                              <p className="text-sm text-foreground font-mono">
+                                {payment.incomeId ? `Ingreso #${String(payment.incomeId).slice(0, 8)}` : `Pago #${String(payment.id).slice(0, 8)}`}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Monto total del ingreso</p>
+                              <p className="text-sm text-foreground">
+                                {formatMoney(payment.incomeAmountCents ?? payment.amountCents)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Aplicado a esta cita</p>
+                              <p className="text-sm font-medium text-foreground">
+                                {formatMoney(payment.amountCents)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {(payment.incomeReference || payment.reference || payment.provider) && (
+                            <div className="mt-3 rounded-md bg-background/70 p-3 text-xs text-muted-foreground">
+                              {payment.provider && <p>Método: {payment.provider}</p>}
+                              {(payment.incomeReference || payment.reference) && (
+                                <p>Referencia: {payment.incomeReference || payment.reference}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      La cita está marcada como pagada, pero no se encontró el detalle del ingreso asociado.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            {appointment.status !== "cancelled" && (
+            {activeAppointment.status === "scheduled" && (
               <>
                 <Button
                   variant="outline"
@@ -258,7 +345,7 @@ export function AppointmentDetailModal({
             <AlertDialogTitle>¿Cancelar esta cita?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción cancelará la cita de{" "}
-              <span className="font-medium">{appointment.patient}</span>.
+              <span className="font-medium">{activeAppointment.patient}</span>.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -275,12 +362,12 @@ export function AppointmentDetailModal({
       </AlertDialog>
 
       {/* Reschedule Modal */}
-      {appointment && (
+      {activeAppointment && (
         <AppointmentModal
           isOpen={rescheduleModalOpen}
           onClose={() => setRescheduleModalOpen(false)}
           editMode={true}
-          appointmentData={appointment}
+          appointmentData={activeAppointment}
           currentPsychologistId={currentPsychologistId}
           onSaved={onSaved}
         />

@@ -5,7 +5,6 @@ import { MindCareControlLanding } from "./components/MindCareControlLanding";
 import { PsychologistApplicationForm } from "./components/PsychologistApplicationForm";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
-import { NetworkDashboard } from "./components/NetworkDashboard";
 import { CompanyDashboard } from "./components/CompanyDashboard";
 import { CompanyReports } from "./components/CompanyReports";
 import { EmployeeDashboard } from "./components/EmployeeDashboard";
@@ -27,15 +26,14 @@ import { ProfileSettings } from "./components/ProfileSettings";
 import { Settings } from "./components/Settings";
 import { Reports } from "./components/Reports";
 import { FeatureFeedback } from "./components/FeatureFeedback";
-import { ReminderCenter } from "./components/ReminderCenter";
 import { BillingManagement } from "./components/BillingManagement";
 import { AdminBillingPanel } from "./components/AdminBillingPanel";
 import { NetworkPayouts } from "./components/NetworkPayouts";
 import { AvailabilitySettings } from "./components/AvailabilitySettings";
 import { UserManagement } from "./components/UserManagement";
-import { Button } from "./components/ui/button";
+import { DataStatusBanner } from "./components/DataStatusBanner";
 import { Toaster } from "./components/ui/sonner";
-import { supabaseFunction } from "../services/api";
+import { resolvePsychologistProfileId, supabaseFunction, supabaseRest } from "../services/api";
 import { toast } from "sonner";
 
 interface User {
@@ -53,16 +51,140 @@ const psychologists: Array<{ id: string; name: string }> = [];
 const patients: Array<{ id: string; name: string }> = [];
 
 type UserRole = "admin" | "psicologo" | "empresa" | "empleado";
+type AppointmentDefaultView = "calendar" | "list";
+type DataStatus = {
+  status: "demo" | "partial";
+  detail: string;
+};
+type PsychologistPlan = "basico" | "intermedio" | "pro" | "afiliado";
+type PublicRoute = "empresas" | "psicologos" | "directorio" | "aplicar";
+
+interface PsychologistSubscriptionRow {
+  planes_suscripcion_psicologo?: {
+    codigo?: string | null;
+  } | null;
+}
+
+const PUBLIC_ROUTE_PATHS: Record<PublicRoute, string> = {
+  empresas: "/empresas",
+  psicologos: "/psicologos",
+  directorio: "/directorio",
+  aplicar: "/aplicar",
+};
+
+const PSYCHOLOGIST_ROUTE_ALIASES = new Set([
+  "/psicologo",
+  "/psicologos",
+  "/psicólogos",
+  "/psicologoos",
+  "/psiclogoos",
+  "/psicolgoos",
+]);
+
+function normalizePath(pathname: string) {
+  const normalized = pathname.replace(/\/+$/, "");
+  return normalized || "/";
+}
+
+function isLocalHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0";
+}
+
+function isAppHostname(hostname: string) {
+  return hostname === "app.mindcare.mx" || hostname.startsWith("app.");
+}
+
+function isMindCareMarketingHostname(hostname: string) {
+  return hostname === "mindcare.mx" || hostname === "www.mindcare.mx";
+}
+
+function getPublicRouteFromLocation(): PublicRoute | null {
+  const hostname = window.location.hostname;
+  const path = normalizePath(window.location.pathname);
+
+  if (path === PUBLIC_ROUTE_PATHS.empresas) return "empresas";
+  if (path === PUBLIC_ROUTE_PATHS.directorio) return "directorio";
+  if (path === PUBLIC_ROUTE_PATHS.aplicar) return "aplicar";
+  if (PSYCHOLOGIST_ROUTE_ALIASES.has(path)) return "psicologos";
+
+  if (isAppHostname(hostname)) return null;
+  if (isMindCareMarketingHostname(hostname) && path === "/") return "psicologos";
+
+  return null;
+}
+
+function getAppBaseUrl() {
+  const configuredUrl = import.meta.env.VITE_APP_BASE_URL;
+  if (configuredUrl) return configuredUrl.replace(/\/+$/, "");
+  if (isLocalHostname(window.location.hostname) || isAppHostname(window.location.hostname)) {
+    return window.location.origin;
+  }
+  return "https://app.mindcare.mx";
+}
 
 export default function App() {
-  const [showLanding, setShowLanding] = useState(false);
-  const [showControlLanding, setShowControlLanding] = useState(false);
-  const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [publicRoute, setPublicRoute] = useState<PublicRoute | null>(() => getPublicRouteFromLocation());
   const [showLogin, setShowLogin] = useState(false);
   const [activeSection, setActiveSection] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [appointmentDefaultView, setAppointmentDefaultView] = useState<AppointmentDefaultView>(() => {
+    const stored = localStorage.getItem("mindcare_appointment_default_view");
+    return stored === "list" ? "list" : "calendar";
+  });
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const storedTheme = localStorage.getItem("mindcare_theme");
+    if (storedTheme === "light" || storedTheme === "dark") return storedTheme;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUserPlan, setCurrentUserPlan] = useState<PsychologistPlan | undefined>(undefined);
   const videoSessionToken = new URLSearchParams(window.location.search).get("video_session");
+  const showLanding = publicRoute === "empresas";
+  const showControlLanding = publicRoute === "psicologos";
+  const showApplicationForm = publicRoute === "aplicar";
+  const showPublicDirectory = publicRoute === "directorio";
+
+  const navigateToPublicRoute = (route: PublicRoute | null, options: { replace?: boolean } = {}) => {
+    const nextPath = route ? PUBLIC_ROUTE_PATHS[route] : "/";
+    if (normalizePath(window.location.pathname) !== nextPath) {
+      const historyMethod = options.replace ? "replaceState" : "pushState";
+      window.history[historyMethod]({}, "", nextPath);
+    }
+    setPublicRoute(route);
+    if (route) setShowLogin(false);
+  };
+
+  const openAppLogin = () => {
+    const appBaseUrl = getAppBaseUrl();
+
+    if (appBaseUrl !== window.location.origin) {
+      window.location.href = appBaseUrl;
+      return;
+    }
+
+    navigateToPublicRoute(null);
+    setShowLogin(true);
+  };
+
+  useEffect(() => {
+    const syncRoute = () => setPublicRoute(getPublicRouteFromLocation());
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
+
+  useEffect(() => {
+    const canonicalPath = publicRoute ? PUBLIC_ROUTE_PATHS[publicRoute] : null;
+    if (canonicalPath && normalizePath(window.location.pathname) !== canonicalPath) {
+      window.history.replaceState({}, "", canonicalPath);
+    }
+  }, [publicRoute]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.style.colorScheme = theme;
+    localStorage.setItem("mindcare_theme", theme);
+  }, [theme]);
 
   // Check for stored auth on mount
   useEffect(() => {
@@ -81,6 +203,44 @@ export default function App() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCurrentUserPlan = async () => {
+      if (currentUser?.rol !== "psicologo") {
+        setCurrentUserPlan(undefined);
+        return;
+      }
+
+      try {
+        const profileId = await resolvePsychologistProfileId(currentUser.id);
+        if (!profileId) {
+          if (!cancelled) setCurrentUserPlan("basico");
+          return;
+        }
+
+        const subscriptions = await supabaseRest<PsychologistSubscriptionRow[]>(
+          `/suscripciones_psicologo?psicologo_id=eq.${profileId}&estado=eq.activa&select=planes_suscripcion_psicologo(codigo)&limit=1`
+        );
+        const planCode = subscriptions[0]?.planes_suscripcion_psicologo?.codigo;
+        const validPlan = ["basico", "intermedio", "pro", "afiliado"].includes(planCode || "")
+          ? planCode as PsychologistPlan
+          : "basico";
+
+        if (!cancelled) setCurrentUserPlan(validPlan);
+      } catch (error) {
+        console.warn("No se pudo cargar el plan del psicólogo:", error);
+        if (!cancelled) setCurrentUserPlan("basico");
+      }
+    };
+
+    loadCurrentUserPlan();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, currentUser?.rol]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -128,9 +288,7 @@ export default function App() {
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     setShowLogin(false);
-    setShowLanding(false);
-    setShowControlLanding(false);
-    setShowApplicationForm(false);
+    navigateToPublicRoute(null, { replace: true });
     setActiveSection("dashboard");
   };
 
@@ -141,6 +299,20 @@ export default function App() {
     localStorage.removeItem("mindcare_refresh_token");
     setActiveSection("dashboard");
     setShowLogin(true);
+    navigateToPublicRoute(null, { replace: true });
+  };
+
+  const handleAppointmentDefaultViewChange = (view: AppointmentDefaultView) => {
+    setAppointmentDefaultView(view);
+    localStorage.setItem("mindcare_appointment_default_view", view);
+  };
+
+  const openPublicDirectory = () => {
+    navigateToPublicRoute("directorio");
+  };
+
+  const closePublicDirectory = () => {
+    navigateToPublicRoute("psicologos");
   };
 
   const getRoleLabel = (rol: UserRole): string => {
@@ -160,12 +332,100 @@ export default function App() {
 
   const currentPsychologistId = currentUser?.rol === "psicologo" ? currentUser.id : undefined;
 
+  const getDataStatus = (): DataStatus | null => {
+    if (!currentUser) return null;
+
+    if (activeSection === "dashboard") {
+      if (currentUser.rol === "admin") {
+        return null;
+      }
+      if (currentUser.rol === "empresa") {
+        return {
+          status: "demo",
+          detail: "El panel de empresa todavía usa métricas, gráficas y actividad de ejemplo.",
+        };
+      }
+      if (currentUser.rol === "empleado") {
+        return {
+          status: "demo",
+          detail: "El panel de empleado todavía usa sesiones y datos de ejemplo.",
+        };
+      }
+      return null;
+    }
+
+    if (activeSection.startsWith("psychologist-")) {
+      return {
+        status: "demo",
+        detail: "El perfil público abierto desde el directorio todavía usa información de ejemplo.",
+      };
+    }
+
+    const statusBySection: Record<string, DataStatus> = {
+      companies: {
+        status: "partial",
+        detail: "Empresas usa endpoints reales antiguos, pero aún falta validar todo el CRUD y reemplazar métricas auxiliares.",
+      },
+      employees: {
+        status: "demo",
+        detail: "La lista de empleados todavía usa datos de ejemplo y no está conectada al padrón real.",
+      },
+      "user-management": {
+        status: "partial",
+        detail: "La gestión general de usuarios usa el flujo antiguo; el alta completa real ya está implementada solo para psicólogos.",
+      },
+      directory: {
+        status: "partial",
+        detail: "El directorio ya consulta perfiles reales públicos; faltan reseñas detalladas y edición de perfil público.",
+      },
+      availability: {
+        status: "partial",
+        detail: "La disponibilidad se edita en pantalla, pero todavía no se guarda ni se lee desde la base de datos.",
+      },
+      reports: {
+        status: "demo",
+        detail: "Los reportes todavía usan métricas y gráficas de ejemplo.",
+      },
+      feedback: {
+        status: "demo",
+        detail: "Las sugerencias de mejora todavía se guardan solo en estado local de la pantalla.",
+      },
+      billing: {
+        status: "partial",
+        detail: "La suscripción ya lee planes y límites desde Supabase. Los métodos de pago dependen de Stripe, Edge Functions y configuración final.",
+      },
+      "network-payouts": {
+        status: "demo",
+        detail: "Los cortes MindCare todavía usan sesiones, montos e historial de ejemplo.",
+      },
+      settings: {
+        status: "partial",
+        detail: "La configuración todavía no persiste todos los cambios en Supabase.",
+      },
+      profile: {
+        status: "partial",
+        detail: "Nombre, teléfono y contraseña ya se actualizan en Supabase. La sección fiscal sigue como prototipo visual.",
+      },
+    };
+
+    if (activeSection === "appointments" && currentUser.rol === "empleado") {
+      return {
+        status: "demo",
+        detail: "Las citas del empleado todavía se muestran con información de ejemplo.",
+      };
+    }
+
+    return statusBySection[activeSection] || null;
+  };
+
   const renderContent = () => {
     if (!currentUser) return null;
 
     switch (activeSection) {
       case "dashboard":
-        if (currentUser.rol === "admin") return <NetworkDashboard />;
+        if (currentUser.rol === "admin") {
+          return <PsychologistsList isAdmin />;
+        }
         if (currentUser.rol === "empresa") return <CompanyDashboard />;
         if (currentUser.rol === "empleado") return <EmployeeDashboard />;
         return <Dashboard currentUser={currentUser} />;
@@ -178,14 +438,15 @@ export default function App() {
             currentPsychologistId={currentPsychologistId}
             psychologists={psychologists}
             patients={patients}
+            defaultTab={appointmentDefaultView}
           />
         );
       case "video-sessions":
         return <VideoSessions currentPsychologistId={currentPsychologistId} />;
       case "psychologists":
-        return <PsychologistsList onLoginAsPsychologist={() => {}} isAdmin={currentUser.rol === "admin"} />;
+        return <PsychologistsList isAdmin={currentUser.rol === "admin"} />;
       case "directory":
-        return <PsychologistDirectory onViewProfile={(id) => setActiveSection(`psychologist-${id}`)} />;
+        return <PsychologistDirectory />;
       case activeSection.startsWith("psychologist-") ? activeSection : "":
         const psychologistId = parseInt(activeSection.split("-")[1]);
         const psychologist = {
@@ -232,7 +493,7 @@ export default function App() {
           />
         );
       case "offices":
-        return <OfficesList />;
+        return <OfficesList currentPsychologistId={currentPsychologistId} />;
       case "availability":
         return (
           <AvailabilitySettings
@@ -257,19 +518,38 @@ export default function App() {
         );
       case "network-payouts":
         return <NetworkPayouts psychologistName={`${currentUser.nombre} ${currentUser.apellido}`} />;
-      case "notifications":
-        return <ReminderCenter currentPsychologistId={currentPsychologistId} />;
       case "settings":
-        return <Settings />;
+        return (
+          <Settings
+            userRole={currentUser.rol}
+            userId={currentUser.id}
+            appointmentDefaultView={appointmentDefaultView}
+            onAppointmentDefaultViewChange={handleAppointmentDefaultViewChange}
+          />
+        );
       case "profile":
         return <ProfileSettings currentUser={{
           id: currentUser.id,
           name: `${currentUser.nombre} ${currentUser.apellido}`,
           role: getRoleLabel(currentUser.rol),
-          avatar: currentUser.foto_perfil
+          avatar: currentUser.foto_perfil,
+          email: currentUser.email,
+          phone: currentUser.telefono || "",
+        }} onUserUpdated={(updates) => {
+          setCurrentUser((user) => {
+            if (!user) return user;
+            const updatedUser = {
+              ...user,
+              ...updates,
+            };
+            localStorage.setItem("mindcare_user", JSON.stringify(updatedUser));
+            return updatedUser;
+          });
         }} />;
       default:
-        if (currentUser.rol === "admin") return <NetworkDashboard />;
+        if (currentUser.rol === "admin") {
+          return <PsychologistsList isAdmin />;
+        }
         if (currentUser.rol === "empresa") return <CompanyDashboard />;
         if (currentUser.rol === "empleado") return <EmployeeDashboard />;
         return <Dashboard currentUser={currentUser} />;
@@ -285,13 +565,26 @@ export default function App() {
     );
   }
 
+  if (showPublicDirectory) {
+    return (
+      <>
+        <PsychologistDirectory
+          publicMode
+          onBack={closePublicDirectory}
+          onShowAuth={openAppLogin}
+        />
+        <Toaster />
+      </>
+    );
+  }
+
   // Show login if no user authenticated
   if (!currentUser && !showLanding && !showControlLanding && !showApplicationForm) {
     return (
       <>
         <LoginPage
           onLogin={handleLogin}
-          onGoToLanding={() => setShowLanding(true)}
+          onGoToLanding={() => navigateToPublicRoute("psicologos")}
         />
         <Toaster />
       </>
@@ -303,14 +596,8 @@ export default function App() {
     return (
       <>
         <PsychologistApplicationForm
-          onBack={() => {
-            setShowApplicationForm(false);
-            setShowLanding(true);
-          }}
-          onGoToControlLanding={() => {
-            setShowApplicationForm(false);
-            setShowControlLanding(true);
-          }}
+          onBack={() => navigateToPublicRoute("psicologos")}
+          onGoToControlLanding={() => navigateToPublicRoute("psicologos")}
         />
         <Toaster />
       </>
@@ -322,18 +609,11 @@ export default function App() {
     return (
       <>
         <MindCareControlLanding
-          onEnterApp={() => {
-            setShowControlLanding(false);
-            setShowLogin(true);
-          }}
-          onGoToEnterpriseLanding={() => {
-            setShowControlLanding(false);
-            setShowLanding(true);
-          }}
-          onShowAuth={() => {
-            setShowControlLanding(false);
-            setShowLogin(true);
-          }}
+          onEnterApp={openAppLogin}
+          onGoToEnterpriseLanding={() => navigateToPublicRoute("empresas")}
+          onShowAuth={openAppLogin}
+          onApplyAsPsychologist={() => navigateToPublicRoute("aplicar")}
+          onOpenDirectory={openPublicDirectory}
         />
         <Toaster />
       </>
@@ -345,18 +625,9 @@ export default function App() {
     return (
       <>
         <LandingPage
-          onEnterApp={() => {
-            setShowLanding(false);
-            setShowLogin(true);
-          }}
-          onApplyAsPsychologist={() => {
-            setShowLanding(false);
-            setShowApplicationForm(true);
-          }}
-          onGoToControlLanding={() => {
-            setShowLanding(false);
-            setShowControlLanding(true);
-          }}
+          onEnterApp={openAppLogin}
+          onApplyAsPsychologist={() => navigateToPublicRoute("psicologos")}
+          onGoToControlLanding={() => navigateToPublicRoute("psicologos")}
         />
         <Toaster />
       </>
@@ -367,7 +638,10 @@ export default function App() {
   if (!currentUser) {
     return (
       <>
-        <LoginPage onLogin={handleLogin} />
+        <LoginPage
+          onLogin={handleLogin}
+          onGoToLanding={() => navigateToPublicRoute("psicologos")}
+        />
         <Toaster />
       </>
     );
@@ -384,55 +658,46 @@ export default function App() {
         userRole={currentUser.rol}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        userPlan={undefined}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        userPlan={currentUserPlan}
       />
       <Header
         currentUser={{
           id: currentUser.id,
           name: `${currentUser.nombre} ${currentUser.apellido}`,
           role: getRoleLabel(currentUser.rol),
-          avatar: currentUser.foto_perfil
+          avatar: currentUser.foto_perfil,
+          plan: currentUserPlan
         }}
         onBackToAdmin={undefined}
         onNavigate={setActiveSection}
-        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+        onMenuClick={() => {
+          if (window.innerWidth >= 1024) {
+            setSidebarCollapsed((collapsed) => !collapsed);
+            return;
+          }
+          setSidebarOpen(!sidebarOpen);
+        }}
+        sidebarCollapsed={sidebarCollapsed}
+        theme={theme}
+        onToggleTheme={() => setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))}
+        onLogout={handleLogout}
       />
 
-      {/* Demo: Landing Switcher */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          className="bg-white shadow-lg"
-          onClick={() => {
-            setShowLanding(true);
-          }}
-        >
-          🏢 Landing Empresas
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="bg-white shadow-lg"
-          onClick={() => {
-            setShowControlLanding(true);
-          }}
-        >
-          💼 Landing Control
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="bg-white shadow-lg text-red-600"
-          onClick={handleLogout}
-        >
-          🚪 Cerrar Sesión
-        </Button>
-      </div>
-
       {/* Main Content */}
-      <main className="lg:ml-64 mt-16 p-4 md:p-6 lg:p-8">
-        <div className="max-w-[1400px] mx-auto">
+      <main
+        className={`${
+          sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
+        } mt-16 p-4 md:p-6 lg:p-8 transition-all duration-300`}
+      >
+        <div className={`${activeSection === "appointments" ? "max-w-[1800px]" : "max-w-[1400px]"} mx-auto`}>
+          {getDataStatus() && (
+            <DataStatusBanner
+              status={getDataStatus()!.status}
+              detail={getDataStatus()!.detail}
+            />
+          )}
           {renderContent()}
         </div>
       </main>

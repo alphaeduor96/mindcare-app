@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { Plus, Edit, Trash2, Building2, MapPin, Phone } from "lucide-react";
+import { Plus, Edit, Trash2, Building2, MapPin, Phone, Heart } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { AddOfficeModal, type OfficeRow } from "./AddOfficeModal";
-import { supabaseRest } from "../../services/api";
+import { resolvePsychologistProfileId, supabaseRest } from "../../services/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,13 +30,23 @@ function formatAmenity(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function OfficesList() {
+interface OfficesListProps {
+  currentPsychologistId?: string;
+}
+
+type OfficeWithRelation = OfficeRow & {
+  es_principal?: boolean;
+  relation_id?: string;
+};
+
+export function OfficesList({ currentPsychologistId }: OfficesListProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [offices, setOffices] = useState<OfficeRow[]>([]);
+  const [offices, setOffices] = useState<OfficeWithRelation[]>([]);
   const [selectedOffice, setSelectedOffice] = useState<OfficeRow | null>(null);
   const [deleteOffice, setDeleteOffice] = useState<OfficeRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingDelete, setSavingDelete] = useState(false);
+  const [savingPrincipalId, setSavingPrincipalId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -48,9 +58,27 @@ export function OfficesList() {
       setError("");
 
       try {
-        const rows = await supabaseRest<OfficeRow[]>(
-          "/consultorios?select=id,nombre,direccion,colonia,municipio,estado_region,codigo_postal,telefono,descripcion,amenidades,estado,created_at&order=created_at.desc"
-        );
+        const profileId = await resolvePsychologistProfileId(currentPsychologistId);
+        const relationRows = profileId
+          ? await supabaseRest<
+              Array<{
+                id: string;
+                consultorio_id: string;
+                es_principal: boolean;
+                consultorios?: OfficeRow | null;
+              }>
+            >(
+              `/psicologo_consultorios?psicologo_id=eq.${profileId}&select=id,consultorio_id,es_principal,consultorios(id,nombre,direccion,colonia,municipio,estado_region,codigo_postal,latitud,longitud,telefono,descripcion,amenidades,fotos_urls,estado,created_at)&order=es_principal.desc`
+            )
+          : [];
+
+        const rows = relationRows
+          .filter((row) => row.consultorios)
+          .map((row) => ({
+            ...row.consultorios!,
+            relation_id: row.id,
+            es_principal: row.es_principal,
+          }));
 
         if (active) setOffices(rows);
       } catch (loadError: any) {
@@ -67,7 +95,7 @@ export function OfficesList() {
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [currentPsychologistId, reloadKey]);
 
   const stats = useMemo(
     () => ({
@@ -107,6 +135,43 @@ export function OfficesList() {
       toast.error("No se pudo desactivar el consultorio.");
     } finally {
       setSavingDelete(false);
+    }
+  };
+
+  const handleSetPrincipal = async (office: OfficeWithRelation) => {
+    setSavingPrincipalId(office.id);
+
+    try {
+      const profileId = await resolvePsychologistProfileId(currentPsychologistId);
+
+      if (!profileId) {
+        toast.error("Tu usuario no tiene perfil de psicólogo vinculado.");
+        return;
+      }
+
+      await supabaseRest(`/psicologo_consultorios?psicologo_id=eq.${profileId}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ es_principal: false }),
+      });
+
+      await supabaseRest("/psicologo_consultorios?on_conflict=psicologo_id,consultorio_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+        body: JSON.stringify({
+          psicologo_id: profileId,
+          consultorio_id: office.id,
+          es_principal: true,
+        }),
+      });
+
+      toast.success("Consultorio principal actualizado");
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      console.error("Set principal office error:", error);
+      toast.error("No se pudo definir el consultorio principal.");
+    } finally {
+      setSavingPrincipalId(null);
     }
   };
 
@@ -171,7 +236,12 @@ export function OfficesList() {
             const status = statusConfig[office.estado] || statusConfig.inactivo;
 
             return (
-              <Card key={office.id} className="border-border hover:shadow-lg transition-shadow">
+              <Card
+                key={office.id}
+                className={`hover:shadow-lg transition-shadow ${
+                  office.es_principal ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
@@ -185,7 +255,15 @@ export function OfficesList() {
                         </p>
                       </div>
                     </div>
-                    <Badge className={status.color}>{status.label}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge className={status.color}>{status.label}</Badge>
+                      {office.es_principal && (
+                        <Badge className="gap-1 bg-primary text-primary-foreground text-xs">
+                          <Heart className="w-3 h-3 fill-current" />
+                          Principal
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -209,6 +287,15 @@ export function OfficesList() {
                     <p className="text-sm text-muted-foreground line-clamp-2">{office.descripcion}</p>
                   )}
 
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div className="rounded-lg bg-muted/40 p-2">
+                      Pin: {office.latitud && office.longitud ? "Confirmado" : "Pendiente"}
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-2">
+                      Fotos: {office.fotos_urls?.length || 0}
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">Amenidades:</p>
                     <div className="flex flex-wrap gap-1">
@@ -228,6 +315,16 @@ export function OfficesList() {
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(office)}>
                       <Edit className="w-3 h-3 mr-1" />
                       Editar
+                    </Button>
+                    <Button
+                      variant={office.es_principal ? "secondary" : "outline"}
+                      size="sm"
+                      className={office.es_principal ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
+                      onClick={() => handleSetPrincipal(office)}
+                      disabled={office.es_principal || office.estado !== "activo" || savingPrincipalId === office.id}
+                      title="Marcar como principal"
+                    >
+                      <Heart className={`w-3 h-3 ${office.es_principal ? "fill-current" : ""}`} />
                     </Button>
                     <Button
                       variant="outline"
@@ -250,6 +347,7 @@ export function OfficesList() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         office={selectedOffice}
+        currentPsychologistId={currentPsychologistId}
         onSaved={() => setReloadKey((key) => key + 1)}
       />
 

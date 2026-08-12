@@ -19,6 +19,8 @@ import {
   FileText,
   Download,
   CheckCircle2,
+  Clock3,
+  WalletCards,
 } from "lucide-react";
 
 interface PaymentDetailModalProps {
@@ -31,12 +33,29 @@ const paymentMethods = {
   card: { label: "Tarjeta", icon: CreditCard },
   cash: { label: "Efectivo", icon: DollarSign },
   transfer: { label: "Transferencia", icon: CreditCard },
+  credit: { label: "Saldo a favor", icon: WalletCards },
 };
 
 const paymentStatus = {
   paid: { label: "Pagado", color: "bg-[#81C784] text-white" },
   pending: { label: "Pendiente", color: "bg-[#FFB74D] text-white" },
+  pending_apply: { label: "Pendiente de aplicar", color: "bg-[#FFB74D] text-white" },
+  applied: { label: "Aplicado", color: "bg-[#81C784] text-white" },
   cancelled: { label: "Cancelado", color: "bg-destructive text-destructive-foreground" },
+};
+
+const formatMoney = (amountCents?: number) =>
+  `$${Math.round((amountCents || 0) / 100).toLocaleString("es-MX")}`;
+
+const formatLongDate = (value?: string | null) => {
+  if (!value) return "Sin fecha";
+
+  return new Date(value).toLocaleDateString("es-MX", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 };
 
 export function PaymentDetailModal({
@@ -46,9 +65,13 @@ export function PaymentDetailModal({
 }: PaymentDetailModalProps) {
   if (!payment) return null;
 
-  const method = paymentMethods[payment.method as keyof typeof paymentMethods];
-  const status = paymentStatus[payment.status as keyof typeof paymentStatus];
+  const method = paymentMethods[payment.method as keyof typeof paymentMethods] || paymentMethods.transfer;
+  const status = paymentStatus[payment.status as keyof typeof paymentStatus] || paymentStatus.paid;
   const MethodIcon = method.icon;
+  const totalCents = payment.amountCents ?? payment.amount * 100;
+  const appliedCents = payment.appliedCents ?? (payment.status === "applied" ? totalCents : 0);
+  const pendingCents = payment.pendingCents ?? Math.max(0, totalCents - appliedCents);
+  const applications = payment.applications || [];
 
   const handleDownloadReceipt = () => {
     console.log("Downloading receipt for payment:", payment.id);
@@ -68,7 +91,22 @@ export function PaymentDetailModal({
           {/* Header with Amount */}
           <div className="text-center py-4 bg-accent/30 rounded-lg">
             <p className="text-sm text-muted-foreground mb-2">Monto Total</p>
-            <p className="text-4xl text-foreground">${payment.amount}</p>
+            <p className="text-4xl text-foreground">{formatMoney(totalCents)}</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Recibido</p>
+              <p className="text-xl text-foreground">{formatMoney(totalCents)}</p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Aplicado</p>
+              <p className="text-xl text-foreground">{formatMoney(appliedCents)}</p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Por aplicar</p>
+              <p className="text-xl text-foreground">{formatMoney(pendingCents)}</p>
+            </div>
           </div>
 
           {/* Status Badge */}
@@ -158,6 +196,45 @@ export function PaymentDetailModal({
               <p className="text-foreground pl-6 text-sm">{payment.notes}</p>
             </div>
           )}
+
+          <Separator />
+
+          <div className="space-y-3">
+            <Label className="text-muted-foreground flex items-center gap-2">
+              <Clock3 className="w-4 h-4" />
+              Aplicación del pago
+            </Label>
+
+            {applications.length > 0 ? (
+              <div className="space-y-2">
+                {applications.map((application: any) => (
+                  <div
+                    key={application.id}
+                    className="rounded-lg border border-border p-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <div>
+                        <p className="text-sm text-foreground">
+                          {formatLongDate(application.appointmentDate)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Cita #{String(application.appointmentId).slice(0, 8)}
+                          {application.appointmentStatus ? ` · ${application.appointmentStatus}` : ""}
+                        </p>
+                      </div>
+                      <p className="text-sm font-medium text-foreground">
+                        {formatMoney(application.amountCents)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Este ingreso todavía no se ha aplicado a ninguna cita.
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-2">

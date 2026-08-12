@@ -9,6 +9,7 @@ import {
   MessageSquare,
   RefreshCw,
   Send,
+  X,
   UserRound,
   WalletCards,
 } from "lucide-react";
@@ -125,6 +126,8 @@ function typeIcon(type: ReminderItem["type"]) {
 export function ReminderCenter({ currentPsychologistId }: ReminderCenterProps) {
   const [profileId, setProfileId] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<AppointmentRow[]>([]);
+  const [activeSection, setActiveSection] = useState<"psychologist" | "patients" | "rules">("psychologist");
+  const [dismissedReminderIds, setDismissedReminderIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -284,50 +287,86 @@ export function ReminderCenter({ currentPsychologistId }: ReminderCenterProps) {
     });
   }, [appointments]);
 
-  const patientReminders = reminders.filter((reminder) => reminder.audience === "patient");
-  const psychologistReminders = reminders.filter((reminder) => reminder.audience === "psychologist");
-  const highPriority = reminders.filter((reminder) => reminder.priority === "alta").length;
+  const visibleReminders = reminders.filter((reminder) => !dismissedReminderIds.includes(reminder.id));
+  const patientReminders = visibleReminders.filter((reminder) => reminder.audience === "patient");
+  const psychologistReminders = visibleReminders.filter((reminder) => reminder.audience === "psychologist");
+  const highPriority = visibleReminders.filter((reminder) => reminder.priority === "alta").length;
 
   const ruleCards = [
     {
       title: "Cita 24h antes",
       audience: "Paciente",
-      count: reminders.filter((reminder) => reminder.type === "appointment_24h").length,
+      count: visibleReminders.filter((reminder) => reminder.type === "appointment_24h").length,
       icon: CalendarClock,
       description: "Detecta citas confirmadas o agendadas dentro de las próximas 24 horas.",
     },
     {
       title: "Pago de cita pendiente",
       audience: "Paciente",
-      count: reminders.filter((reminder) => reminder.type === "payment_due").length,
+      count: visibleReminders.filter((reminder) => reminder.type === "payment_due").length,
       icon: CreditCard,
       description: "Detecta sesiones completadas sin pago registrado.",
     },
     {
       title: "Pago mensual anticipado",
       audience: "Paciente",
-      count: reminders.filter((reminder) => reminder.type === "monthly_payment").length,
+      count: visibleReminders.filter((reminder) => reminder.type === "monthly_payment").length,
       icon: WalletCards,
       description: "Usa la configuración mensual del paciente para recordar el pago al iniciar el mes.",
     },
     {
       title: "Sesiones sin cobrar",
       audience: "Psicóloga",
-      count: reminders.filter((reminder) => reminder.type === "psych_payment").length,
+      count: visibleReminders.filter((reminder) => reminder.type === "psych_payment").length,
       icon: AlertTriangle,
       description: "Lista sesiones completadas que aún no tienen pago.",
     },
     {
       title: "Estatus sin actualizar",
       audience: "Psicóloga",
-      count: reminders.filter((reminder) => reminder.type === "status_update").length,
+      count: visibleReminders.filter((reminder) => reminder.type === "status_update").length,
       icon: Clock,
       description: "Detecta citas pasadas hace más de un día que no se marcaron como completadas.",
     },
   ];
 
-  const handleSendPreview = (reminder: ReminderItem) => {
-    toast.info(`Twilio aún no está conectado. Mensaje listo: ${reminder.title}`);
+  const buildReminderMessage = (reminder: ReminderItem) => {
+    const patient = patientName(reminder.patient);
+    const date = reminder.appointment ? appointmentDateLabel(reminder.appointment.inicia_at) : "";
+    const amount = reminder.amountCents ? currencyFromCents(reminder.amountCents) : "";
+
+    if (reminder.type === "appointment_24h") {
+      return `Hola ${patient}, te recordamos tu cita de terapia el ${date}. Si necesitas reagendar, responde a este mensaje.`;
+    }
+
+    if (reminder.type === "payment_due") {
+      return `Hola ${patient}, tienes pendiente el pago de tu sesión del ${date}${amount ? ` por ${amount}` : ""}. Gracias por regularizarlo.`;
+    }
+
+    if (reminder.type === "monthly_payment") {
+      return `Hola ${patient}, te recordamos que está pendiente tu pago mensual anticipado de terapia.`;
+    }
+
+    if (reminder.type === "psych_payment") {
+      return `Recordatorio interno: ${patient} tiene una sesión completada sin pago registrado${amount ? ` por ${amount}` : ""}.`;
+    }
+
+    return `Recordatorio interno: revisa el estatus de la cita de ${patient} del ${date}; sigue como "${reminder.appointment?.estado || "pendiente"}".`;
+  };
+
+  const handleDismiss = (reminder: ReminderItem) => {
+    setDismissedReminderIds((current) => Array.from(new Set([...current, reminder.id])));
+    toast.success("Recordatorio ocultado");
+  };
+
+  const handleSendMessage = async (reminder: ReminderItem) => {
+    const message = buildReminderMessage(reminder);
+    try {
+      await navigator.clipboard.writeText(message);
+      toast.success("Mensaje copiado. Twilio aún no está conectado.");
+    } catch {
+      toast.info(`Mensaje listo: ${message}`);
+    }
   };
 
   const renderReminder = (reminder: ReminderItem) => {
@@ -370,15 +409,57 @@ export function ReminderCenter({ currentPsychologistId }: ReminderCenterProps) {
               </div>
             </div>
 
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => handleSendPreview(reminder)}>
-              <Send className="w-4 h-4" />
-              Preparar envío
-            </Button>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => handleDismiss(reminder)}>
+                <CheckCircle2 className="w-4 h-4" />
+                OK
+              </Button>
+              <Button size="sm" className="gap-2" onClick={() => handleSendMessage(reminder)}>
+                <Send className="w-4 h-4" />
+                Enviar mensaje
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
     );
   };
+
+  const sectionCards = [
+    {
+      id: "psychologist" as const,
+      title: "Psicólog@",
+      description: "Tareas propias, cobros y estados por actualizar",
+      count: psychologistReminders.length,
+      icon: UserRound,
+      color: "text-[#7E57C2]",
+      bgColor: "bg-[#7E57C2]/10",
+    },
+    {
+      id: "patients" as const,
+      title: "Pacientes",
+      description: "Mensajes y recordatorios listos para pacientes",
+      count: patientReminders.length,
+      icon: Bell,
+      color: "text-[#4DB6AC]",
+      bgColor: "bg-[#4DB6AC]/10",
+    },
+    {
+      id: "rules" as const,
+      title: "Reglas",
+      description: "Criterios activos que generan recordatorios",
+      count: ruleCards.length,
+      icon: CheckCircle2,
+      color: "text-[#66BB6A]",
+      bgColor: "bg-[#66BB6A]/10",
+    },
+  ];
+
+  const renderEmptyState = (message: string) => (
+    <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
+      {message}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -401,47 +482,96 @@ export function ReminderCenter({ currentPsychologistId }: ReminderCenterProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-border">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground mb-2">Total detectados</p>
-            <p className="text-3xl text-foreground">{loading ? "..." : reminders.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground mb-2">Para pacientes</p>
-            <p className="text-3xl text-[#4DB6AC]">{loading ? "..." : patientReminders.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground mb-2">Para psicóloga</p>
-            <p className="text-3xl text-[#7E57C2]">{loading ? "..." : psychologistReminders.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground mb-2">Prioridad alta</p>
-            <p className="text-3xl text-destructive">{loading ? "..." : highPriority}</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {sectionCards.map((section) => {
+          const Icon = section.icon;
+          const isActive = activeSection === section.id;
+
+          return (
+            <button
+              key={section.id}
+              type="button"
+              className={`rounded-lg border p-5 text-left transition-all ${
+                isActive
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-border bg-card hover:bg-accent/50"
+              }`}
+              onClick={() => setActiveSection(section.id)}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className={`rounded-lg ${section.bgColor} p-3 ${section.color}`}>
+                  <Icon className="h-6 w-6" />
+                </div>
+                <Badge variant={isActive ? "default" : "outline"}>
+                  {loading ? "..." : section.count}
+                </Badge>
+              </div>
+              <div className="mt-4">
+                <h2 className="text-xl text-foreground">{section.title}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{section.description}</p>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
-        <div className="space-y-4">
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Bell className="w-5 h-5 text-primary" />
-                Reglas activas
+      <Card className="border-border">
+        <CardHeader>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>
+                {activeSection === "psychologist" && "Recordatorios para psicólog@"}
+                {activeSection === "patients" && "Recordatorios para pacientes"}
+                {activeSection === "rules" && "Reglas activas"}
               </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {activeSection === "psychologist" && "Tareas clínicas o administrativas que requieren revisión del psicólogo."}
+                {activeSection === "patients" && "Mensajes preparados para enviar a pacientes cuando conectemos el canal de envío."}
+                {activeSection === "rules" && "Criterios que el sistema usa para detectar recordatorios automáticamente."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">Total {loading ? "..." : visibleReminders.length}</Badge>
+              <Badge variant="outline" className="border-destructive/20 text-destructive">
+                Alta {loading ? "..." : highPriority}
+              </Badge>
+              {dismissedReminderIds.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-xs"
+                  onClick={() => setDismissedReminderIds([])}
+                >
+                  <X className="h-3 w-3" />
+                  Mostrar ocultos
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {activeSection === "psychologist" && (
+            loading
+              ? renderEmptyState("Calculando tareas...")
+              : psychologistReminders.length === 0
+                ? renderEmptyState("No hay tareas clínicas o de cobro pendientes.")
+                : psychologistReminders.map(renderReminder)
+          )}
+
+          {activeSection === "patients" && (
+            loading
+              ? renderEmptyState("Calculando recordatorios...")
+              : patientReminders.length === 0
+                ? renderEmptyState("No hay recordatorios de pacientes pendientes.")
+                : patientReminders.map(renderReminder)
+          )}
+
+          {activeSection === "rules" && (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {ruleCards.map((rule) => {
                 const Icon = rule.icon;
                 return (
-                  <div key={rule.title} className="rounded-md border border-border p-3">
+                  <div key={rule.title} className="rounded-md border border-border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -452,7 +582,7 @@ export function ReminderCenter({ currentPsychologistId }: ReminderCenterProps) {
                       </div>
                       <Badge variant="outline">{rule.count}</Badge>
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{rule.audience}</span>
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5 text-[#66BB6A]" />
@@ -462,60 +592,21 @@ export function ReminderCenter({ currentPsychologistId }: ReminderCenterProps) {
                   </div>
                 );
               })}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <MessageSquare className="w-5 h-5 text-primary mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-sm text-foreground">Canal de envío</p>
-                  <p className="text-xs text-muted-foreground">
-                    Esta interfaz ya prepara mensajes. El siguiente paso será guardar plantillas y conectar Twilio para WhatsApp/SMS.
-                  </p>
+              <div className="rounded-md border border-border p-4 lg:col-span-2">
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="w-5 h-5 text-primary mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-sm text-foreground">Canal de envío</p>
+                    <p className="text-xs text-muted-foreground">
+                      Esta interfaz ya prepara mensajes. El siguiente paso será guardar plantillas y conectar Twilio para WhatsApp/SMS.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Para pacientes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {loading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Calculando recordatorios...</div>
-              ) : patientReminders.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  No hay recordatorios de pacientes pendientes.
-                </div>
-              ) : (
-                patientReminders.map(renderReminder)
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-lg">Para psicóloga</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {loading ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">Calculando tareas...</div>
-              ) : psychologistReminders.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
-                  No hay tareas clínicas o de cobro pendientes.
-                </div>
-              ) : (
-                psychologistReminders.map(renderReminder)
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
