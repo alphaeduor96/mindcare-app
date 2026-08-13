@@ -31,6 +31,7 @@ import {
   isWithinWorkingHours,
   normalizeTimeValue,
   saveWorkingHours,
+  timeToMinutes,
   workingHoursChangedEvent,
   type WorkingHours,
 } from "../utils/appointmentPreferences";
