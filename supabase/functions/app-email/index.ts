@@ -229,11 +229,11 @@ async function assertCanSendEmail(request: Request, type: EmailType, to: string,
 
     const { data: patient } = await supabase
       .from("pacientes")
-      .select("id,email,psicologo_id")
+      .select("id,email,creado_por_psicologo_id")
       .eq("id", patientId)
       .maybeSingle();
 
-    if (!patient || patient.psicologo_id !== psychologist.id || cleanEmail(patient.email) !== cleanEmail(to)) {
+    if (!patient || patient.creado_por_psicologo_id !== psychologist.id || cleanEmail(patient.email) !== cleanEmail(to)) {
       return { ok: false, status: 403, error: "No autorizado para enviar correo a este paciente." };
     }
 
