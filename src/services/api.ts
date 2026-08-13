@@ -11,19 +11,32 @@ export function getAuthToken() {
   return localStorage.getItem("mindcare_token") || publicAnonKey;
 }
 
-export async function supabaseFunction<T>(
-  functionName: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const response = await fetch(`${supabaseFunctionsBaseUrl}/${functionName}`, {
+async function requestSupabaseFunction(functionName: string, options: RequestInit, token: string) {
+  return fetch(`${supabaseFunctionsBaseUrl}/${functionName}`, {
     ...options,
     headers: {
       apikey: publicAnonKey,
-      Authorization: `Bearer ${getAuthToken()}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       ...options.headers,
     },
   });
+}
+
+export async function supabaseFunction<T>(
+  functionName: string,
+  options: RequestInit = {}
+): Promise<T> {
+  let response = await requestSupabaseFunction(functionName, options, getAuthToken());
+
+  if (response.status === 401) {
+    try {
+      const freshToken = await refreshStoredSession();
+      response = await requestSupabaseFunction(functionName, options, freshToken);
+    } catch (_error) {
+      // Keep the original 401 response so the caller receives the real function error.
+    }
+  }
 
   const text = await response.text();
   let data: any = null;
