@@ -102,6 +102,6 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("stripe-sync-setup-session error:", error);
-    return json({ error: error instanceof Error ? error.message : "Error desconocido" }, 500);
+    return json({ error: "No se pudo sincronizar el método de pago." }, 500);
   }
 });

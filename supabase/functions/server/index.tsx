@@ -8,6 +8,23 @@ import { reportesRoutes } from "./endpoints_reportes.tsx";
 
 const app = new Hono();
 
+function configuredOrigins() {
+  return [
+    Deno.env.get("APP_PUBLIC_URL"),
+    Deno.env.get("APP_ALLOWED_ORIGINS"),
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+}
+
+function allowedOrigin(origin: string) {
+  const normalized = origin.replace(/\/$/, "");
+  if (/^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(normalized)) return origin;
+  return configuredOrigins().includes(normalized) ? origin : configuredOrigins()[0] || "https://app.mindcare.mx";
+}
+
 // Create Supabase client
 const getSupabaseClient = () => {
   return createClient(
@@ -23,7 +40,7 @@ app.use('*', logger(console.log));
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: allowedOrigin,
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
@@ -39,186 +56,54 @@ app.get("/make-server-0e77298f/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+app.use("/make-server-0e77298f/*", async (c, next) => {
+  if (c.req.method === "OPTIONS") return next();
+
+  const supabase = getSupabaseClient();
+  const authHeader = c.req.header("Authorization") || "";
+  const token = authHeader.replace("Bearer ", "").trim();
+
+  if (!token) {
+    return c.json({ error: "No autorizado" }, 401);
+  }
+
+  const { data: authUser, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !authUser.user) {
+    return c.json({ error: "No autorizado" }, 401);
+  }
+
+  const { data: requester, error: requesterError } = await supabase
+    .from("usuarios")
+    .select("rol,activo,estado")
+    .eq("id", authUser.user.id)
+    .single();
+
+  const isActive = requester?.activo !== false && requester?.estado !== "inactivo";
+  if (requesterError || !requester || !isActive) {
+    return c.json({ error: "Usuario sin permisos" }, 403);
+  }
+
+  if (requester.rol !== "admin") {
+    return c.json({ error: "Solo administradores pueden usar este endpoint legacy" }, 403);
+  }
+
+  await next();
+});
+
 // =====================================================
 // AUTH ENDPOINTS
 // =====================================================
 
 app.post("/make-server-0e77298f/auth/signup", async (c) => {
-  try {
-    const { email, password, nombre, apellido, rol, telefono } = await c.req.json();
-    const supabase = getSupabaseClient();
-
-    console.log(`Creating user: ${email}, role: ${rol}`);
-
-    // Create user in Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm email since we don't have email server configured
-      user_metadata: {
-        nombre,
-        apellido,
-        rol,
-        telefono
-      }
-    });
-
-    if (authError) {
-      console.error("Auth user creation error:", authError);
-      return c.json({ error: `Error al crear usuario en Auth: ${authError.message}` }, 400);
-    }
-
-    console.log(`User created in Auth with ID: ${authData.user.id}`);
-
-    // Create user in usuarios table
-    const { data: usuario, error: userError } = await supabase
-      .from("usuarios")
-      .insert({
-        id: authData.user.id, // Use same ID from auth.users
-        email,
-        nombre,
-        apellido,
-        telefono,
-        rol,
-        activo: true
-      })
-      .select()
-      .single();
-
-    if (userError) {
-      console.error("User table creation error:", userError);
-      // If usuarios insert fails, try to clean up auth user
-      console.log(`Cleaning up auth user: ${authData.user.id}`);
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      return c.json({ error: `Error al crear perfil de usuario: ${userError.message}` }, 400);
-    }
-
-    console.log(`User profile created successfully for: ${email}`);
-
-    // Generate a simple access token
-    const access_token = btoa(JSON.stringify({
-      user_id: authData.user.id,
-      email: authData.user.email,
-      timestamp: Date.now()
-    }));
-
-    return c.json({
-      user: usuario,
-      access_token,
-      message: "Usuario creado exitosamente. Use estas credenciales para iniciar sesión."
-    });
-  } catch (error: any) {
-    console.error("Signup error:", error);
-    return c.json({ error: `Error en el proceso de registro: ${error.message}` }, 500);
-  }
+  return c.json({
+    error: "Endpoint legacy deshabilitado. Usa Supabase Auth o una función administrativa específica.",
+  }, 410);
 });
 
 app.post("/make-server-0e77298f/auth/login", async (c) => {
-  try {
-    const { email, password } = await c.req.json();
-    const supabase = getSupabaseClient();
-
-    // MÉTODO HÍBRIDO: Intentar con Supabase Auth primero, luego con password_hash
-
-    // Intento 1: Supabase Auth (usuarios nuevos creados con admin.createUser)
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (!authError && authData?.user) {
-      // Login exitoso con Supabase Auth
-      console.log(`Supabase Auth successful for user: ${authData.user.email}`);
-
-      let { data: usuario, error: userError } = await supabase
-        .from("usuarios")
-        .select("*")
-        .eq("id", authData.user.id)
-        .single();
-
-      if (userError || !usuario) {
-        console.log("User not found in usuarios table, attempting to create from auth metadata");
-
-        // Si el usuario existe en auth pero no en la tabla usuarios, crearlo
-        const metadata = authData.user.user_metadata || {};
-        const emailParts = authData.user.email?.split('@') || ['User'];
-
-        const { data: newUser, error: createError } = await supabase
-          .from("usuarios")
-          .insert({
-            id: authData.user.id,
-            email: authData.user.email || '',
-            nombre: metadata.nombre || emailParts[0],
-            apellido: metadata.apellido || '',
-            telefono: metadata.telefono || '',
-            rol: metadata.rol || 'empleado',
-            activo: true
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          console.error("Failed to create user in usuarios table:", createError);
-          return c.json({ error: "Error al crear perfil de usuario" }, 500);
-        }
-
-        usuario = newUser;
-        console.log("User profile created successfully from auth metadata");
-      }
-
-      // Verificar que el usuario esté activo
-      if (!usuario.activo) {
-        return c.json({ error: "Usuario inactivo" }, 401);
-      }
-
-      return c.json({
-        user: usuario,
-        access_token: authData.session.access_token,
-        session: authData.session
-      });
-    }
-
-    // Intento 2: Sistema legacy con password_hash (usuarios antiguos)
-    console.log("Supabase Auth failed, trying legacy password_hash system");
-
-    const { data: usuario, error: userError } = await supabase
-      .from("usuarios")
-      .select("*")
-      .eq("email", email)
-      .eq("activo", true)
-      .single();
-
-    if (userError || !usuario) {
-      console.error("User fetch error:", userError);
-      return c.json({ error: "Credenciales incorrectas" }, 401);
-    }
-
-    // Verificar si tiene password_hash (sistema legacy)
-    if (usuario.password_hash && usuario.password_hash === password) {
-      // Login exitoso con password_hash
-      const access_token = btoa(JSON.stringify({
-        user_id: usuario.id,
-        email: usuario.email,
-        timestamp: Date.now()
-      }));
-
-      // Remover password_hash de la respuesta
-      delete usuario.password_hash;
-
-      return c.json({
-        user: usuario,
-        access_token,
-        message: "Login con sistema legacy. Considere migrar a Supabase Auth."
-      });
-    }
-
-    // Si llegamos aquí, las credenciales son incorrectas
-    console.error("Invalid credentials for user:", email);
-    return c.json({ error: "Credenciales incorrectas" }, 401);
-  } catch (error: any) {
-    console.error("Login error:", error);
-    return c.json({ error: error.message || "Login failed" }, 500);
-  }
+  return c.json({
+    error: "Endpoint legacy deshabilitado. Usa Supabase Auth.",
+  }, 410);
 });
 
 // =====================================================

@@ -119,6 +119,6 @@ serve(async (req) => {
     return json({ url: buildAuthorizeUrl(proveedor, state) });
   } catch (error) {
     console.error("video-oauth-start error:", error);
-    return json({ error: error instanceof Error ? error.message : "Error desconocido" }, 500);
+    return json({ error: "No se pudo iniciar la conexión de videollamada." }, 500);
   }
 });

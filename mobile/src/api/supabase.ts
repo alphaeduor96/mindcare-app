@@ -4,15 +4,22 @@ import { Appointment, ClinicalNote, Patient, Payment, User } from "../types";
 
 const extra = Constants.expoConfig?.extra || {};
 
-export const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  extra.supabaseUrl ||
-  "https://ssnfoheivrzhbfsrnswi.supabase.co";
+function requiredPublicConfig(name: string, value: unknown) {
+  if (!value) {
+    throw new Error(`Falta configurar ${name} para la app movil.`);
+  }
+  return String(value);
+}
 
-export const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-  extra.supabaseAnonKey ||
-  "sb_publishable_LwDAFknte9hiBU1fs9os9g_jr-_YHxM";
+export const supabaseUrl = requiredPublicConfig(
+  "EXPO_PUBLIC_SUPABASE_URL",
+  process.env.EXPO_PUBLIC_SUPABASE_URL || extra.supabaseUrl,
+);
+
+export const supabaseAnonKey = requiredPublicConfig(
+  "EXPO_PUBLIC_SUPABASE_ANON_KEY",
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || extra.supabaseAnonKey,
+);
 
 const REST_BASE = `${supabaseUrl}/rest/v1`;
 

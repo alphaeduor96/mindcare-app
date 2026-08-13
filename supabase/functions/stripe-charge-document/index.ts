@@ -183,6 +183,6 @@ serve(async (req) => {
     return json({ ok: true, payment_intent_id: intent.id, status: intent.status });
   } catch (error) {
     console.error("stripe-charge-document error:", error);
-    return json({ error: error instanceof Error ? error.message : "Error desconocido" }, 500);
+    return json({ error: "No se pudo procesar el documento." }, 500);
   }
 });

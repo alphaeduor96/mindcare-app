@@ -284,7 +284,7 @@ async function request(endpoint: string, options: RequestInit = {}) {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${publicAnonKey}`,
+      Authorization: `Bearer ${getAuthToken()}`,
       ...options.headers,
     },
   });

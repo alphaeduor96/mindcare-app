@@ -137,6 +137,6 @@ serve(async (req) => {
     return json({ url: session.url, session_id: session.id });
   } catch (error) {
     console.error("stripe-create-setup-session error:", error);
-    return json({ error: error instanceof Error ? error.message : "Error desconocido" }, 500);
+    return json({ error: "No se pudo abrir Stripe." }, 500);
   }
 });

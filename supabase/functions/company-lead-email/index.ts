@@ -108,8 +108,9 @@ Deno.serve(async (request) => {
     }
 
     if (!response.ok) {
+      console.error("Company lead provider error:", result);
       return Response.json(
-        { error: result?.message || "No se pudo enviar el correo.", detail: result },
+        { error: "No se pudo enviar la solicitud." },
         { status: 502, headers: corsHeaders },
       );
     }
@@ -118,7 +119,7 @@ Deno.serve(async (request) => {
   } catch (error) {
     console.error("Company lead email error:", error);
     return Response.json(
-      { error: error instanceof Error ? error.message : "No se pudo procesar la solicitud." },
+      { error: "No se pudo procesar la solicitud." },
       { status: 500, headers: corsHeaders },
     );
   }

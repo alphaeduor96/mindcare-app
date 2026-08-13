@@ -50,14 +50,7 @@ Después:
 
 ## Configuración
 
-La app usa las mismas llaves públicas de Supabase que la web:
-
-```txt
-https://ssnfoheivrzhbfsrnswi.supabase.co
-sb_publishable_LwDAFknte9hiBU1fs9os9g_jr-_YHxM
-```
-
-También puedes sobreescribirlas con:
+La app usa las mismas llaves públicas de Supabase que la web. Configúralas por ambiente antes de levantar Expo:
 
 ```bash
 EXPO_PUBLIC_SUPABASE_URL=

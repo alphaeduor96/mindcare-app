@@ -1,5 +1,6 @@
+import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -25,6 +26,44 @@ const esc = (value = "") =>
 
 const money = (value: unknown) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(Number(value || 0));
+
+function requestHeaders(request: Request) {
+  const origin = request.headers.get("origin") || "";
+  const configuredOrigins = [
+    Deno.env.get("APP_PUBLIC_URL"),
+    Deno.env.get("APP_ALLOWED_ORIGINS"),
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+  const allowedOrigin =
+    origin && (configuredOrigins.includes(origin.replace(/\/$/, "")) || isLocalOrigin)
+      ? origin
+      : configuredOrigins[0] || "https://app.mindcare.mx";
+
+  return {
+    ...corsHeaders,
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Vary": "Origin",
+  };
+}
+
+function json(request: Request, body: unknown, status = 200) {
+  return Response.json(body, { status, headers: requestHeaders(request) });
+}
+
+function requireEnv(name: string) {
+  const value = Deno.env.get(name);
+  if (!value) throw new Error(`Missing ${name}`);
+  return value;
+}
+
+function cleanEmail(value: unknown) {
+  return String(value || "").trim().toLowerCase();
+}
 
 const formatDate = (value: unknown) => {
   if (!value) return "Fecha por confirmar";
@@ -159,12 +198,61 @@ function renderHtml(type: EmailType, data: Record<string, any>) {
 </div>`;
 }
 
+async function assertCanSendEmail(request: Request, type: EmailType, to: string, data: Record<string, any>) {
+  const authHeader = request.headers.get("Authorization") || "";
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) return { ok: false, status: 401, error: "No autorizado" };
+
+  const supabase = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"));
+  const { data: authUser, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !authUser.user) return { ok: false, status: 401, error: "No autorizado" };
+
+  const { data: requester } = await supabase
+    .from("usuarios")
+    .select("rol,email")
+    .eq("id", authUser.user.id)
+    .maybeSingle();
+
+  if (requester?.rol === "admin") return { ok: true };
+
+  if (["appointment_created", "appointment_updated", "appointment_cancelled", "payment_receipt", "payment_pending"].includes(type)) {
+    const patientId = String(data.patientId || "").trim();
+    if (!patientId) return { ok: false, status: 400, error: "Falta patientId para enviar este correo." };
+
+    const { data: psychologist } = await supabase
+      .from("psicologos")
+      .select("id")
+      .eq("usuario_id", authUser.user.id)
+      .maybeSingle();
+
+    if (!psychologist?.id) return { ok: false, status: 403, error: "No autorizado" };
+
+    const { data: patient } = await supabase
+      .from("pacientes")
+      .select("id,email,psicologo_id")
+      .eq("id", patientId)
+      .maybeSingle();
+
+    if (!patient || patient.psicologo_id !== psychologist.id || cleanEmail(patient.email) !== cleanEmail(to)) {
+      return { ok: false, status: 403, error: "No autorizado para enviar correo a este paciente." };
+    }
+
+    return { ok: true };
+  }
+
+  if (["psychologist_welcome", "subscription_charge_success", "subscription_charge_failed", "invoice_available"].includes(type)) {
+    if (cleanEmail(requester?.email) === cleanEmail(to)) return { ok: true };
+  }
+
+  return { ok: false, status: 403, error: "No autorizado" };
+}
+
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (request.method === "OPTIONS") return new Response("ok", { headers: requestHeaders(request) });
 
   try {
     if (request.method !== "POST") {
-      return Response.json({ error: "Method not allowed" }, { status: 405, headers: corsHeaders });
+      return json(request, { error: "Method not allowed" }, 405);
     }
 
     const payload = await request.json();
@@ -173,12 +261,17 @@ Deno.serve(async (request) => {
     const data = payload.data || {};
 
     if (!type || !to) {
-      return Response.json({ error: "type y to son obligatorios." }, { status: 400, headers: corsHeaders });
+      return json(request, { error: "type y to son obligatorios." }, 400);
+    }
+
+    const authorization = await assertCanSendEmail(request, type, to, data);
+    if (!authorization.ok) {
+      return json(request, { error: authorization.error }, authorization.status);
     }
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
-      return Response.json({ error: "Falta configurar RESEND_API_KEY." }, { status: 500, headers: corsHeaders });
+      return json(request, { error: "Servicio de correo no configurado." }, 500);
     }
 
     const fromEmail = Deno.env.get("APP_EMAIL_FROM") || "MindCare <notificaciones@mindcare.mx>";
@@ -204,18 +297,13 @@ Deno.serve(async (request) => {
     }
 
     if (!response.ok) {
-      return Response.json(
-        { error: result?.message || "No se pudo enviar el correo.", detail: result },
-        { status: 502, headers: corsHeaders },
-      );
+      console.error("app-email provider error:", result);
+      return json(request, { error: "No se pudo enviar el correo." }, 502);
     }
 
-    return Response.json({ ok: true, id: result?.id }, { headers: corsHeaders });
+    return json(request, { ok: true, id: result?.id });
   } catch (error) {
     console.error("app-email error:", error);
-    return Response.json(
-      { error: error instanceof Error ? error.message : "No se pudo procesar la solicitud." },
-      { status: 500, headers: corsHeaders },
-    );
+    return json(request, { error: "No se pudo procesar la solicitud." }, 500);
   }
 });

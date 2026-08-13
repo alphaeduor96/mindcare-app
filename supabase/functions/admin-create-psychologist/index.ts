@@ -152,6 +152,6 @@ serve(async (req) => {
         .auth.admin.deleteUser(createdAuthUserId);
     }
 
-    return json({ error: error instanceof Error ? error.message : "Error desconocido" }, 500);
+    return json({ error: "No se pudo completar la operación." }, 500);
   }
 });

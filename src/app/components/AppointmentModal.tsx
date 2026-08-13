@@ -766,6 +766,7 @@ export function AppointmentModal({
             type: emailType,
             to: selectedPatient.email,
             data: {
+              patientId: selectedPatient.id,
               patientName: fullName(selectedPatient),
               psychologistName: storedUserName(),
               startsAt: startsAt.toISOString(),

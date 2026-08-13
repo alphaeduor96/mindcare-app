@@ -1,4 +1,4 @@
-import { API_BASE, publicAnonKey, supabaseUrl } from "../../services/api";
+import { publicAnonKey, supabaseUrl } from "../../services/api";
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -12,44 +12,6 @@ import mindcareLoginLeftPanel from "../../assets/mindcare-login-left-panel.png";
 interface LoginPageProps {
   onLogin: (user: any) => void;
   onGoToLanding?: () => void;
-}
-
-const localUsers = [
-  {
-    email: "admin@mindcare.mx",
-    password: "Admin2026!",
-    user: {
-      id: "local-admin",
-      email: "admin@mindcare.mx",
-      nombre: "Super",
-      apellido: "Admin",
-      telefono: "+52 33 1111 2222",
-      rol: "admin",
-      activo: true,
-      foto_perfil:
-        "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop",
-    },
-  },
-  {
-    email: "admin@test.com",
-    password: "12345678",
-    user: {
-      id: "local-admin-test",
-      email: "admin@test.com",
-      nombre: "Admin",
-      apellido: "Demo",
-      rol: "admin",
-      activo: true,
-    },
-  },
-];
-
-function getLocalUser(email: string, password: string) {
-  return localUsers.find(
-    (localUser) =>
-      localUser.email.toLowerCase() === email.toLowerCase() &&
-      localUser.password === password
-  )?.user;
 }
 
 function isNetworkError(error: any) {
@@ -211,29 +173,6 @@ async function signupPsychologistWithSupabase(data: {
   };
 }
 
-async function loginWithEdgeFunction(email: string, password: string) {
-  const response = await fetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${publicAnonKey}`,
-    },
-    body: JSON.stringify({ email, password }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    if (data?.code === "NOT_FOUND" || data?.message === "Requested function was not found") {
-      throw new Error("La función de login no está desplegada en Supabase.");
-    }
-
-    throw new Error(getAuthErrorMessage(data) || "Error al iniciar sesión");
-  }
-
-  return data;
-}
-
 export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -248,13 +187,6 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [adminLoginEnabled, setAdminLoginEnabled] = useState(false);
-
-  const enableAdminLogin = () => {
-    setAdminLoginEnabled(true);
-    setMode("login");
-    toast.success("Login de administrador habilitado");
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,18 +199,7 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
     setLoading(true);
 
     try {
-      const data = await loginWithSupabaseAuth(email, password).catch(async (authError) => {
-        if (String(authError?.message || "").toLowerCase().includes("invalid login credentials")) {
-          throw new Error("Credenciales incorrectas");
-        }
-
-        return loginWithEdgeFunction(email, password);
-      });
-
-      if (data.user?.rol === "admin" && !adminLoginEnabled) {
-        toast.error("Acceso administrador bloqueado. Activa el modo administrador desde el login.");
-        return;
-      }
+      const data = await loginWithSupabaseAuth(email, password);
 
       // Store auth data
       localStorage.setItem("mindcare_user", JSON.stringify(data.user));
@@ -291,21 +212,6 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
       onLogin(data.user);
     } catch (error: any) {
       console.error("Login error:", error);
-
-      const localUser = getLocalUser(email, password);
-      if (localUser && isNetworkError(error)) {
-        if (localUser.rol === "admin" && !adminLoginEnabled) {
-          toast.error("Acceso administrador bloqueado. Activa el modo administrador desde el login.");
-          return;
-        }
-
-        localStorage.setItem("mindcare_user", JSON.stringify(localUser));
-        localStorage.setItem("mindcare_token", "local-dev-token");
-        localStorage.removeItem("mindcare_refresh_token");
-        toast.success(`Bienvenido ${localUser.nombre}! (modo local)`);
-        onLogin(localUser);
-        return;
-      }
 
       if (isNetworkError(error)) {
         toast.error("No se pudo conectar con Supabase. Revisa la configuración del proyecto.");
@@ -430,12 +336,6 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
                       : "Alta gratuita para psicólogos. No necesitas tarjeta."}
                   </p>
                 </div>
-
-                {adminLoginEnabled && mode === "login" && (
-                  <div className="mb-6 rounded-2xl border border-[#4DB6AC]/30 bg-[#E8F8F6] px-4 py-3 text-sm text-[#007F86]">
-                    Modo administrador activo. Ingresa con tus credenciales de administrador.
-                  </div>
-                )}
 
                 {mode === "login" ? (
                   <form onSubmit={handleLogin} className="space-y-5">
@@ -667,9 +567,7 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
               ¿Necesitas ayuda?{" "}
               <button
                 type="button"
-                onDoubleClick={enableAdminLogin}
-                className="cursor-default select-none font-medium text-[#008D94]"
-                title="Doble click para habilitar acceso administrador"
+                className="font-medium text-[#008D94]"
               >
                 Contacta a tu administrador
               </button>

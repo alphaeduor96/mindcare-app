@@ -1,4 +1,4 @@
-import { API_BASE, publicAnonKey } from "../../services/api";
+import { API_BASE, getAuthToken } from "../../services/api";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -81,7 +81,7 @@ export function CompaniesList() {
         `${API_BASE}/empresas`,
         {
           headers: {
-            Authorization: `Bearer ${publicAnonKey}`,
+            Authorization: `Bearer ${getAuthToken()}`,
           },
         }
       );
@@ -103,6 +103,8 @@ export function CompaniesList() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    toast.error("Alta legacy de empresas deshabilitada por seguridad. Se reemplazará por una función administrativa segura.");
+    return;
 
     if (!formData.companyName || !formData.contactName || !formData.email || !formData.rfc) {
       toast.error("Complete los campos requeridos");
@@ -132,7 +134,7 @@ export function CompaniesList() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${publicAnonKey}`,
+            Authorization: `Bearer ${getAuthToken()}`,
           },
           body: JSON.stringify({
             email: formData.email,
@@ -159,7 +161,7 @@ export function CompaniesList() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${publicAnonKey}`,
+            Authorization: `Bearer ${getAuthToken()}`,
           },
           body: JSON.stringify({
             usuario_id: user.id,

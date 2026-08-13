@@ -269,6 +269,6 @@ serve(async (req) => {
     return json({ session: created });
   } catch (error) {
     console.error("create-video-session error:", error);
-    return json({ error: error instanceof Error ? error.message : "Error desconocido" }, 500);
+    return json({ error: "No se pudo crear la videollamada." }, 500);
   }
 });

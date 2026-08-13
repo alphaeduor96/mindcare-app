@@ -86,6 +86,6 @@ serve(async (req) => {
     return json({ ok: true, charged: Boolean(intent), amount_centavos: amount, payment_intent_id: intent?.id, plan: target });
   } catch (error) {
     console.error("stripe-charge-plan-change error:", error);
-    return json({ error: error instanceof Error ? error.message : "Error desconocido" }, 500);
+    return json({ error: "No se pudo procesar el cambio de plan." }, 500);
   }
 });

@@ -1,4 +1,3 @@
-import { API_BASE, publicAnonKey } from "../../services/api";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Button } from "./ui/button";
@@ -32,45 +31,7 @@ export function UserManagement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    try {
-      const response = await fetch(
-        `${API_BASE}/auth/signup`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify(formData),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Error al crear usuario");
-      }
-
-      toast.success(`Usuario ${formData.nombre} ${formData.apellido} creado exitosamente`);
-
-      // Reset form
-      setFormData({
-        email: "",
-        password: "",
-        nombre: "",
-        apellido: "",
-        telefono: "",
-        rol: "psicologo",
-      });
-
-      setShowDialog(false);
-    } catch (error: any) {
-      console.error("Create user error:", error);
-      toast.error(error.message || "Error al crear usuario");
-    } finally {
-      setLoading(false);
-    }
+    toast.error("Alta legacy deshabilitada por seguridad. Usaremos una función administrativa segura.");
   };
 
   const getRoleLabel = (rol: string) => {
