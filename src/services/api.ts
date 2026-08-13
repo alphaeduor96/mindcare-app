@@ -60,29 +60,15 @@ export async function sendAppEmail(payload: {
   replyTo?: string;
   data?: Record<string, any>;
 }) {
-  const candidates = ["app-email", "supabase-functions-deploy-app-email"];
-  let lastError: unknown = null;
-
-  for (const functionName of candidates) {
-    try {
-      return await supabaseFunction<{ ok: boolean; id?: string }>(functionName, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-    } catch (error) {
-      lastError = error;
-      const message = String(error instanceof Error ? error.message : error).toLowerCase();
-      const canTryNext =
-        message.includes("404") ||
-        message.includes("not found") ||
-        message.includes("load failed") ||
-        message.includes("failed to fetch");
-
-      if (!canTryNext) break;
-    }
+  try {
+    return await supabaseFunction<{ ok: boolean; id?: string }>("app-email", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No se pudo enviar el correo.";
+    throw new Error(`app-email: ${message}`);
   }
-
-  throw lastError instanceof Error ? lastError : new Error("No se pudo enviar el correo.");
 }
 
 function clearStoredSession() {
