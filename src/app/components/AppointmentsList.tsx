@@ -48,7 +48,7 @@ import { AppointmentModal } from "./AppointmentModal";
 import { AppointmentDetailModal } from "./AppointmentDetailModal";
 import { SearchablePatientPicker } from "./SearchablePatientPicker";
 import { toast } from "sonner";
-import { resolvePsychologistProfileId, supabaseRest } from "../../services/api";
+import { resolvePsychologistProfileId, sendAppEmail, supabaseRest } from "../../services/api";
 
 interface AppointmentsListProps {
   currentPsychologistId?: string;
@@ -188,6 +188,20 @@ function appointmentItemToEditData(appointment: AppointmentItem) {
 
 function fullName(person?: { nombre?: string | null; apellido?: string | null } | null) {
   return `${person?.nombre || ""} ${person?.apellido || ""}`.trim();
+}
+
+function officeAddress(office?: AppointmentRow["consultorios"] | null) {
+  if (!office) return "";
+
+  return [
+    office.direccion,
+    office.colonia,
+    office.municipio,
+    office.estado_region,
+    office.codigo_postal ? `CP ${office.codigo_postal}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function mapStatus(status: string): AppointmentItem["status"] {
@@ -376,7 +390,7 @@ export function AppointmentsList({
         cancelada_at: new Date().toISOString(),
       }),
     })
-      .then(() => {
+      .then(async () => {
         setAppointments((current) =>
           current.map((appointment) =>
             appointment.id === selectedAppointment.id
@@ -384,7 +398,40 @@ export function AppointmentsList({
               : appointment
           )
         );
-        toast.success("Cita cancelada exitosamente");
+
+        try {
+          const rows = await supabaseRest<AppointmentRow[]>(
+            `/citas?id=eq.${selectedAppointment.id}&select=id,paciente_id,psicologo_id,inicia_at,termina_at,estado,modalidad,consultorio_id,costo_centavos,pacientes(id,nombre,apellido,email,metadata),consultorios(id,nombre,direccion,colonia,municipio,estado_region,codigo_postal,estado)&limit=1`
+          );
+          const cancelledAppointment = rows[0];
+          const patient = cancelledAppointment?.pacientes;
+
+          if (!cancelledAppointment || !patient?.email) {
+            toast.success("Cita cancelada. No se envió correo porque el paciente no tiene email registrado.");
+            return;
+          }
+
+          await sendAppEmail({
+            type: "appointment_cancelled",
+            to: patient.email,
+            data: {
+              patientId: patient.id || cancelledAppointment.paciente_id,
+              patientName: fullName(patient) || selectedAppointment.patient,
+              psychologistName,
+              startsAt: cancelledAppointment.inicia_at,
+              endsAt: cancelledAppointment.termina_at,
+              modality: cancelledAppointment.modalidad,
+              officeName: cancelledAppointment.consultorios?.nombre || "",
+              officeAddress: officeAddress(cancelledAppointment.consultorios),
+              amount: cancelledAppointment.costo_centavos ? cancelledAppointment.costo_centavos / 100 : null,
+            },
+          });
+          toast.success(`Cita cancelada. Correo enviado a ${patient.email}`);
+        } catch (emailError) {
+          console.warn("Cancel appointment email could not be sent:", emailError);
+          const message = emailError instanceof Error ? emailError.message : "No se pudo enviar el correo.";
+          toast.warning(`Cita cancelada, pero no se pudo enviar el correo: ${message}`);
+        }
       })
       .catch((cancelError) => {
         console.error("Cancel appointment error:", cancelError);

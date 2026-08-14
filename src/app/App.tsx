@@ -144,6 +144,13 @@ export default function App() {
   const showControlLanding = publicRoute === "psicologos";
   const showApplicationForm = publicRoute === "aplicar";
   const showPublicDirectory = publicRoute === "directorio";
+  const isPrivateAppView =
+    Boolean(currentUser) &&
+    !videoSessionToken &&
+    !showLanding &&
+    !showControlLanding &&
+    !showApplicationForm &&
+    !showPublicDirectory;
 
   const navigateToPublicRoute = (route: PublicRoute | null, options: { replace?: boolean } = {}) => {
     const nextPath = route ? PUBLIC_ROUTE_PATHS[route] : "/";
@@ -181,10 +188,16 @@ export default function App() {
   }, [publicRoute]);
 
   useEffect(() => {
+    if (!isPrivateAppView) {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.style.colorScheme = "light";
+      return;
+    }
+
     document.documentElement.classList.toggle("dark", theme === "dark");
     document.documentElement.style.colorScheme = theme;
     localStorage.setItem("mindcare_theme", theme);
-  }, [theme]);
+  }, [isPrivateAppView, theme]);
 
   // Check for stored auth on mount
   useEffect(() => {
