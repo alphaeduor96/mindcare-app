@@ -23,6 +23,18 @@ function getAuthErrorMessage(errorData: any) {
   return errorData?.msg || errorData?.message || errorData?.error_description || errorData?.error;
 }
 
+function getAuthRedirectUrl() {
+  const configuredUrl = import.meta.env.VITE_APP_BASE_URL;
+  if (configuredUrl) return configuredUrl.replace(/\/+$/, "");
+
+  const hostname = window.location.hostname;
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".vercel.app")) {
+    return window.location.origin;
+  }
+
+  return "https://app.mindcare.mx";
+}
+
 async function loginWithSupabaseAuth(email: string, password: string) {
   const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
     method: "POST",
@@ -115,8 +127,9 @@ async function signupPsychologistWithSupabase(data: {
   phone: string;
   password: string;
 }) {
+  const redirectTo = encodeURIComponent(getAuthRedirectUrl());
   const apellido = [data.paternalLastName, data.maternalLastName].filter(Boolean).join(" ");
-  const response = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+  const response = await fetch(`${supabaseUrl}/auth/v1/signup?redirect_to=${redirectTo}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
