@@ -34,7 +34,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { toast } from "sonner";
-import { supabaseRest } from "../../services/api";
+import { sendAppEmail, supabaseRest } from "../../services/api";
 
 interface AppointmentDetailModalProps {
   isOpen: boolean;
@@ -80,6 +80,30 @@ const formatLongDate = (value?: string | null) => {
   });
 };
 
+function fullName(person?: { nombre?: string | null; apellido?: string | null } | null) {
+  return `${person?.nombre || ""} ${person?.apellido || ""}`.trim();
+}
+
+function officeAddress(office?: {
+  direccion?: string | null;
+  colonia?: string | null;
+  municipio?: string | null;
+  estado_region?: string | null;
+  codigo_postal?: string | null;
+} | null) {
+  if (!office) return "";
+
+  return [
+    office.direccion,
+    office.colonia,
+    office.municipio,
+    office.estado_region,
+    office.codigo_postal ? `CP ${office.codigo_postal}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function AppointmentDetailModal({
   isOpen,
   onClose,
@@ -113,7 +137,60 @@ export function AppointmentDetailModal({
         }),
       });
 
-      toast.success("Cita cancelada exitosamente");
+      try {
+        const rows = await supabaseRest<Array<{
+          id: string;
+          paciente_id: string;
+          inicia_at: string;
+          termina_at: string;
+          modalidad: "presencial" | "virtual";
+          costo_centavos?: number | null;
+          pacientes?: {
+            id?: string | null;
+            nombre?: string | null;
+            apellido?: string | null;
+            email?: string | null;
+          } | null;
+          consultorios?: {
+            nombre?: string | null;
+            direccion?: string | null;
+            colonia?: string | null;
+            municipio?: string | null;
+            estado_region?: string | null;
+            codigo_postal?: string | null;
+          } | null;
+        }>>(
+          `/citas?id=eq.${activeAppointment.id}&select=id,paciente_id,inicia_at,termina_at,modalidad,costo_centavos,pacientes(id,nombre,apellido,email),consultorios(nombre,direccion,colonia,municipio,estado_region,codigo_postal)&limit=1`
+        );
+        const cancelledAppointment = rows[0];
+        const patient = cancelledAppointment?.pacientes;
+
+        if (!cancelledAppointment || !patient?.email) {
+          toast.success("Cita cancelada. No se envió correo porque el paciente no tiene email registrado.");
+        } else {
+          await sendAppEmail({
+            type: "appointment_cancelled",
+            to: patient.email,
+            data: {
+              patientId: patient.id || cancelledAppointment.paciente_id,
+              patientName: fullName(patient) || activeAppointment.patient,
+              psychologistName: activeAppointment.psychologist || "tu psicólogo(a)",
+              startsAt: cancelledAppointment.inicia_at,
+              endsAt: cancelledAppointment.termina_at,
+              modality: cancelledAppointment.modalidad,
+              officeName: cancelledAppointment.consultorios?.nombre || "",
+              officeAddress: officeAddress(cancelledAppointment.consultorios),
+              amount: cancelledAppointment.costo_centavos ? cancelledAppointment.costo_centavos / 100 : null,
+            },
+          });
+          toast.success(`Cita cancelada. Correo enviado a ${patient.email}`);
+        }
+      } catch (emailError) {
+        console.warn("Cancel appointment email could not be sent:", emailError);
+        const message = emailError instanceof Error ? emailError.message : "No se pudo enviar el correo.";
+        toast.warning(`Cita cancelada, pero no se pudo enviar el correo: ${message}`);
+      }
+
       setCancelDialogOpen(false);
       onSaved?.();
       onClose();
