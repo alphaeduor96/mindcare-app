@@ -16,6 +16,10 @@ type EmailType =
   | "subscription_charge_failed"
   | "invoice_available";
 
+type AuthorizationResult =
+  | { ok: true; psychologistName?: string }
+  | { ok: false; status: number; error: string };
+
 const esc = (value = "") =>
   String(value)
     .replaceAll("&", "&amp;")
@@ -65,6 +69,20 @@ function cleanEmail(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
 
+function fullName(person?: { nombre?: string | null; apellido?: string | null } | null) {
+  return `${person?.nombre || ""} ${person?.apellido || ""}`.trim();
+}
+
+function isGenericPsychologistName(value: unknown) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+
+  return !normalized || ["psicologo", "psicologo(a)", "tu psicologo(a)"].includes(normalized);
+}
+
 const formatDate = (value: unknown) => {
   if (!value) return "Fecha por confirmar";
   return new Intl.DateTimeFormat("es-MX", {
@@ -74,7 +92,7 @@ const formatDate = (value: unknown) => {
   }).format(new Date(String(value)));
 };
 
-function appointmentDetails(data: Record<string, any>) {
+function appointmentDetails(data: Record<string, any>, options: { includeCancellationPolicy?: boolean } = {}) {
   const lines = [
     ["Paciente", data.patientName],
     ["Psicólogo(a)", data.psychologistName],
@@ -100,7 +118,7 @@ function appointmentDetails(data: Record<string, any>) {
       </p>
     </div>`;
 
-  return `${details}${cancellationPolicy}`;
+  return `${details}${options.includeCancellationPolicy === false ? "" : cancellationPolicy}`;
 }
 
 function template(type: EmailType, data: Record<string, any>) {
@@ -125,10 +143,10 @@ function template(type: EmailType, data: Record<string, any>) {
       subject: `Tu cita fue cancelada`,
       title: "Cita cancelada",
       intro: `Hola ${patientName}, tu cita con ${psychologistName} fue cancelada.`,
-      detail: appointmentDetails(data),
+      detail: appointmentDetails(data, { includeCancellationPolicy: false }),
     },
     payment_receipt: {
-      subject: "Recibo de pago MindCare",
+      subject: "Recibo de pago MindCare Pro",
       title: "Pago registrado",
       intro: `Hola ${patientName}, registramos tu pago correctamente.`,
       detail: `<p style="margin:0 0 10px"><b>Monto:</b> ${money(data.amount)}</p><p style="margin:0"><b>Fecha:</b> ${esc(formatDate(data.paidAt))}</p>`,
@@ -147,7 +165,7 @@ function template(type: EmailType, data: Record<string, any>) {
       cta: appUrl,
     },
     subscription_charge_success: {
-      subject: "Cobro de suscripción MindCare",
+      subject: "Cobro de suscripción MindCare Pro",
       title: "Cobro realizado",
       intro: "Tu suscripción fue cobrada correctamente.",
       detail: `<p style="margin:0 0 10px"><b>Plan:</b> ${esc(data.planName || "")}</p><p style="margin:0 0 10px"><b>Monto:</b> ${money(data.amount)}</p><p style="margin:0"><b>Periodo:</b> ${esc(data.period || "")}</p>`,
@@ -173,15 +191,20 @@ function template(type: EmailType, data: Record<string, any>) {
 
 function renderHtml(type: EmailType, data: Record<string, any>) {
   const content = template(type, data);
+  const publicUrl = (Deno.env.get("APP_PUBLIC_URL") || "https://app.mindcare.mx").replace(/\/$/, "");
+  const logoUrl = Deno.env.get("APP_EMAIL_LOGO_URL") || `${publicUrl}/email/mindcare-logo-pro.png`;
+  const brandMark = logoUrl
+    ? `<img src="${esc(logoUrl)}" width="170" alt="MindCare Pro" style="display:block;max-width:170px;height:auto;margin:0 0 12px" />`
+    : `<p style="margin:0;color:#8EDDD4;font-size:13px;font-weight:700;letter-spacing:.04em">MindCare Pro</p>`;
   const cta = content.cta
-    ? `<a href="${esc(content.cta)}" style="display:inline-block;margin-top:22px;background:#4DB6AC;color:#ffffff;text-decoration:none;padding:13px 20px;border-radius:14px;font-weight:700">Abrir MindCare</a>`
+    ? `<a href="${esc(content.cta)}" style="display:inline-block;margin-top:22px;background:#4DB6AC;color:#ffffff;text-decoration:none;padding:13px 20px;border-radius:14px;font-weight:700">Abrir MindCare Pro</a>`
     : "";
 
   return `
 <div style="margin:0;background:#f4fbfa;padding:32px;font-family:Arial,sans-serif;color:#153033">
   <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dcefed;border-radius:24px;overflow:hidden">
     <div style="background:#062F32;padding:28px 32px;color:#ffffff">
-      <p style="margin:0;color:#8EDDD4;font-size:13px;font-weight:700;letter-spacing:.04em">MindCare</p>
+      ${brandMark}
       <h1 style="margin:8px 0 0;font-size:26px;line-height:1.2">${esc(content.title)}</h1>
     </div>
     <div style="padding:28px 32px">
@@ -192,13 +215,18 @@ function renderHtml(type: EmailType, data: Record<string, any>) {
       ${cta}
     </div>
     <div style="padding:18px 32px;background:#f8fffe;color:#607d80;font-size:12px">
-      Este correo fue enviado automáticamente por MindCare.
+      Este correo fue enviado automáticamente por MindCare Pro.
     </div>
   </div>
 </div>`;
 }
 
-async function assertCanSendEmail(request: Request, type: EmailType, to: string, data: Record<string, any>) {
+async function assertCanSendEmail(
+  request: Request,
+  type: EmailType,
+  to: string,
+  data: Record<string, any>
+): Promise<AuthorizationResult> {
   const authHeader = request.headers.get("Authorization") || "";
   const token = authHeader.replace("Bearer ", "").trim();
   if (!token) return { ok: false, status: 401, error: "No autorizado" };
@@ -209,7 +237,7 @@ async function assertCanSendEmail(request: Request, type: EmailType, to: string,
 
   const { data: requester } = await supabase
     .from("usuarios")
-    .select("rol,email")
+    .select("rol,email,nombre,apellido")
     .eq("id", authUser.user.id)
     .maybeSingle();
 
@@ -237,7 +265,10 @@ async function assertCanSendEmail(request: Request, type: EmailType, to: string,
       return { ok: false, status: 403, error: "No autorizado para enviar correo a este paciente." };
     }
 
-    return { ok: true };
+    return {
+      ok: true,
+      psychologistName: fullName(requester) || "tu psicólogo(a)",
+    };
   }
 
   if (["psychologist_welcome", "subscription_charge_success", "subscription_charge_failed", "invoice_available"].includes(type)) {
@@ -269,13 +300,18 @@ Deno.serve(async (request) => {
       return json(request, { error: authorization.error }, authorization.status);
     }
 
+    const emailData = { ...data };
+    if (authorization.psychologistName && isGenericPsychologistName(emailData.psychologistName)) {
+      emailData.psychologistName = authorization.psychologistName;
+    }
+
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       return json(request, { error: "Servicio de correo no configurado." }, 500);
     }
 
-    const fromEmail = Deno.env.get("APP_EMAIL_FROM") || "MindCare <notificaciones@mindcare.mx>";
-    const content = template(type, data);
+    const fromEmail = Deno.env.get("APP_EMAIL_FROM") || "MindCare Pro <notificaciones@mindcare.mx>";
+    const content = template(type, emailData);
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
@@ -284,7 +320,7 @@ Deno.serve(async (request) => {
         to: [to],
         reply_to: payload.replyTo || undefined,
         subject: content.subject,
-        html: renderHtml(type, data),
+        html: renderHtml(type, emailData),
       }),
     });
 
