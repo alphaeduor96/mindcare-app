@@ -1,3 +1,6 @@
+import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { checkRateLimit, clientIp, rateLimitHeaders } from "../_shared/rate_limit.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -14,12 +17,38 @@ const esc = (value = "") =>
 
 const phoneDigits = (value = "") => String(value).replace(/\D/g, "");
 
+function requireEnv(name: string) {
+  const value = Deno.env.get(name);
+  if (!value) throw new Error(`Missing ${name}`);
+  return value;
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     if (request.method !== "POST") {
       return Response.json({ error: "Method not allowed" }, { status: 405, headers: corsHeaders });
+    }
+
+    const supabase = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"));
+    const ipLimit = await checkRateLimit(supabase, {
+      scope: "company-lead-email:ip",
+      identifier: clientIp(request),
+      maxRequests: 5,
+      windowSeconds: 600,
+    });
+    if (!ipLimit.allowed) {
+      return Response.json(
+        { error: "Demasiadas solicitudes. Intenta de nuevo más tarde." },
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            ...rateLimitHeaders(ipLimit),
+          },
+        },
+      );
     }
 
     const payload = await request.json();

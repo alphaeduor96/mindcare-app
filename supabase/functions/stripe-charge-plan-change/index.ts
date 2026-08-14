@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { checkRateLimit } from "../_shared/rate_limit.ts";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -33,6 +34,13 @@ serve(async (req) => {
     const token = (req.headers.get("Authorization") || "").replace("Bearer ", "");
     const { data: auth, error: authError } = await supabase.auth.getUser(token);
     if (authError || !auth.user) return json({ error: "No autorizado" }, 401);
+    const limit = await checkRateLimit(supabase, {
+      scope: "stripe-charge-plan-change:user",
+      identifier: auth.user.id,
+      maxRequests: 20,
+      windowSeconds: 600,
+    });
+    if (!limit.allowed) return json({ error: "Demasiadas solicitudes. Intenta de nuevo más tarde." }, 429);
     const { psicologo_id, target_plan_id } = await req.json();
     if (!psicologo_id || !target_plan_id) return json({ error: "Faltan datos" }, 400);
     const { data: psych } = await supabase.from("psicologos").select("usuario_id").eq("id", psicologo_id).single();

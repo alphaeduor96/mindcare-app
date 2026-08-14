@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { checkRateLimit } from "../_shared/rate_limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +46,14 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: authUser, error: authError } = await supabase.auth.getUser(token);
     if (authError || !authUser.user) return json({ error: "No autorizado" }, 401);
+
+    const limit = await checkRateLimit(supabase, {
+      scope: "admin-create-psychologist:user",
+      identifier: authUser.user.id,
+      maxRequests: 20,
+      windowSeconds: 3600,
+    });
+    if (!limit.allowed) return json({ error: "Demasiadas solicitudes. Intenta de nuevo más tarde." }, 429);
 
     const { data: requester } = await supabase
       .from("usuarios")

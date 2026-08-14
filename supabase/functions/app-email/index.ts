@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { checkRateLimit, clientIp, rateLimitHeaders } from "../_shared/rate_limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -17,7 +18,7 @@ type EmailType =
   | "invoice_available";
 
 type AuthorizationResult =
-  | { ok: true; psychologistName?: string }
+  | { ok: true; actorUserId: string; psychologistName?: string }
   | { ok: false; status: number; error: string };
 
 const esc = (value = "") =>
@@ -222,6 +223,7 @@ function renderHtml(type: EmailType, data: Record<string, any>) {
 }
 
 async function assertCanSendEmail(
+  supabase: any,
   request: Request,
   type: EmailType,
   to: string,
@@ -231,7 +233,6 @@ async function assertCanSendEmail(
   const token = authHeader.replace("Bearer ", "").trim();
   if (!token) return { ok: false, status: 401, error: "No autorizado" };
 
-  const supabase = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"));
   const { data: authUser, error: authError } = await supabase.auth.getUser(token);
   if (authError || !authUser.user) return { ok: false, status: 401, error: "No autorizado" };
 
@@ -241,7 +242,7 @@ async function assertCanSendEmail(
     .eq("id", authUser.user.id)
     .maybeSingle();
 
-  if (requester?.rol === "admin") return { ok: true };
+  if (requester?.rol === "admin") return { ok: true, actorUserId: authUser.user.id };
 
   if (["appointment_created", "appointment_updated", "appointment_cancelled", "payment_receipt", "payment_pending"].includes(type)) {
     const patientId = String(data.patientId || "").trim();
@@ -267,6 +268,7 @@ async function assertCanSendEmail(
 
     return {
       ok: true,
+      actorUserId: authUser.user.id,
       psychologistName: fullName(requester) || "tu psicólogo(a)",
     };
   }
@@ -290,14 +292,44 @@ Deno.serve(async (request) => {
     const type = String(payload.type || "") as EmailType;
     const to = String(payload.to || "").trim();
     const data = payload.data || {};
+    const supabase = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"));
+
+    const ipLimit = await checkRateLimit(supabase, {
+      scope: "app-email:ip",
+      identifier: clientIp(request),
+      maxRequests: 60,
+      windowSeconds: 60,
+    });
+    if (!ipLimit.allowed) {
+      return json(request, { error: "Demasiadas solicitudes. Intenta de nuevo en un momento." }, 429);
+    }
 
     if (!type || !to) {
       return json(request, { error: "type y to son obligatorios." }, 400);
     }
 
-    const authorization = await assertCanSendEmail(request, type, to, data);
+    const authorization = await assertCanSendEmail(supabase, request, type, to, data);
     if (!authorization.ok) {
       return json(request, { error: authorization.error }, authorization.status);
+    }
+
+    const userLimit = await checkRateLimit(supabase, {
+      scope: `app-email:user:${type}`,
+      identifier: authorization.actorUserId,
+      maxRequests: 40,
+      windowSeconds: 600,
+    });
+    if (!userLimit.allowed) {
+      return Response.json(
+        { error: "Límite temporal de correos alcanzado. Intenta de nuevo más tarde." },
+        {
+          status: 429,
+          headers: {
+            ...requestHeaders(request),
+            ...rateLimitHeaders(userLimit),
+          },
+        },
+      );
     }
 
     const emailData = { ...data };
