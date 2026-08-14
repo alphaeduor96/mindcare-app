@@ -759,7 +759,9 @@ export function AppointmentModal({
           ? formData.status === "cancelada"
             ? "appointment_cancelled"
             : "appointment_updated"
-          : "appointment_created";
+          : totalOccurrences > 1
+            ? "appointment_series_created"
+            : "appointment_created";
 
         try {
           await sendAppEmail({
@@ -771,13 +773,18 @@ export function AppointmentModal({
               psychologistName: storedUserName(),
               startsAt: startsAt.toISOString(),
               endsAt: endsAt.toISOString(),
-            modality: formData.modality,
-            officeName: formData.modality === "presencial" ? selectedOffice?.nombre : "",
-            officeAddress: formData.modality === "presencial" ? officeAddress(selectedOffice) : "",
-            amount: formData.amount ? Number(formData.amount) : null,
-          },
+              lastStartsAt: occurrences[occurrences.length - 1]?.startsAt.toISOString(),
+              recurrenceCount: totalOccurrences,
+              modality: formData.modality,
+              officeName: formData.modality === "presencial" ? selectedOffice?.nombre : "",
+              officeAddress: formData.modality === "presencial" ? officeAddress(selectedOffice) : "",
+              amount: formData.amount ? Number(formData.amount) : null,
+            },
           });
-          emailNotice = `Correo enviado a ${selectedPatient.email}`;
+          emailNotice =
+            totalOccurrences > 1 && !editMode
+              ? `Correo resumen enviado a ${selectedPatient.email}`
+              : `Correo enviado a ${selectedPatient.email}`;
         } catch (error) {
           console.warn("Appointment email could not be sent:", error);
           const message = error instanceof Error ? error.message : "No se pudo enviar el correo.";

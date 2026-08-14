@@ -8,6 +8,7 @@ const corsHeaders = {
 
 type EmailType =
   | "appointment_created"
+  | "appointment_series_created"
   | "appointment_updated"
   | "appointment_cancelled"
   | "payment_receipt"
@@ -93,6 +94,31 @@ const formatDate = (value: unknown) => {
   }).format(new Date(String(value)));
 };
 
+const formatDateOnly = (value: unknown) => {
+  if (!value) return "Fecha por confirmar";
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "full",
+    timeZone: "America/Mexico_City",
+  }).format(new Date(String(value)));
+};
+
+const formatTime = (value: unknown) => {
+  if (!value) return "hora por confirmar";
+  return new Intl.DateTimeFormat("es-MX", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Mexico_City",
+  }).format(new Date(String(value)));
+};
+
+const formatWeekday = (value: unknown) => {
+  if (!value) return "semana";
+  return new Intl.DateTimeFormat("es-MX", {
+    weekday: "long",
+    timeZone: "America/Mexico_City",
+  }).format(new Date(String(value)));
+};
+
 function appointmentDetails(data: Record<string, any>, options: { includeCancellationPolicy?: boolean } = {}) {
   const lines = [
     ["Paciente", data.patientName],
@@ -122,6 +148,35 @@ function appointmentDetails(data: Record<string, any>, options: { includeCancell
   return `${details}${options.includeCancellationPolicy === false ? "" : cancellationPolicy}`;
 }
 
+function appointmentSeriesDetails(data: Record<string, any>) {
+  const startTime = formatTime(data.startsAt);
+  const endTime = data.endsAt ? formatTime(data.endsAt) : "";
+  const schedule = endTime ? `${startTime} - ${endTime}` : startTime;
+  const count = Number(data.recurrenceCount || 0);
+  const recurrenceText = count > 1 ? `${count} sesiones` : "Sesiones semanales";
+
+  const lines = [
+    ["Paciente", data.patientName],
+    ["Psicólogo(a)", data.psychologistName],
+    ["Frecuencia", `Todos los ${formatWeekday(data.startsAt)} a las ${startTime}`],
+    ["Horario", schedule],
+    ["Primera sesión", formatDateOnly(data.startsAt)],
+    ["Última sesión", data.lastStartsAt ? formatDateOnly(data.lastStartsAt) : ""],
+    ["Total", recurrenceText],
+    ["Modalidad", data.modality === "virtual" ? "Videollamada" : "Presencial"],
+    ["Consultorio", data.officeName],
+    ["Dirección", data.officeAddress],
+    ["Monto por sesión", data.amount ? money(data.amount) : ""],
+  ].filter(([, value]) => value);
+
+  return lines
+    .map(
+      ([label, value]) =>
+        `<p style="margin:0 0 10px"><b>${esc(label)}:</b> ${esc(String(value))}</p>`,
+    )
+    .join("");
+}
+
 function template(type: EmailType, data: Record<string, any>) {
   const patientName = data.patientName || "Paciente";
   const psychologistName = data.psychologistName || "tu psicólogo(a)";
@@ -133,6 +188,12 @@ function template(type: EmailType, data: Record<string, any>) {
       title: "Tu cita quedó agendada",
       intro: `Hola ${patientName}, te compartimos los detalles de tu cita.`,
       detail: appointmentDetails(data),
+    },
+    appointment_series_created: {
+      subject: `Sesiones semanales confirmadas con ${psychologistName}`,
+      title: "Tus sesiones semanales quedaron confirmadas",
+      intro: `Hola ${patientName}, se confirman tus sesiones todos los ${formatWeekday(data.startsAt)} a las ${formatTime(data.startsAt)}.`,
+      detail: appointmentSeriesDetails(data),
     },
     appointment_updated: {
       subject: `Tu cita fue actualizada`,
@@ -244,7 +305,7 @@ async function assertCanSendEmail(
 
   if (requester?.rol === "admin") return { ok: true, actorUserId: authUser.user.id };
 
-  if (["appointment_created", "appointment_updated", "appointment_cancelled", "payment_receipt", "payment_pending"].includes(type)) {
+  if (["appointment_created", "appointment_series_created", "appointment_updated", "appointment_cancelled", "payment_receipt", "payment_pending"].includes(type)) {
     const patientId = String(data.patientId || "").trim();
     if (!patientId) return { ok: false, status: 400, error: "Falta patientId para enviar este correo." };
 
