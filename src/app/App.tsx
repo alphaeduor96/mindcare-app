@@ -33,7 +33,7 @@ import { AvailabilitySettings } from "./components/AvailabilitySettings";
 import { UserManagement } from "./components/UserManagement";
 import { DataStatusBanner } from "./components/DataStatusBanner";
 import { Toaster } from "./components/ui/sonner";
-import { resolvePsychologistProfileId, supabaseFunction, supabaseRest } from "../services/api";
+import { ensurePsychologistProfileId, supabaseFunction, supabaseRest } from "../services/api";
 import { toast } from "sonner";
 
 interface User {
@@ -235,7 +235,7 @@ export default function App() {
       }
 
       try {
-        const profileId = await resolvePsychologistProfileId(currentUser.id);
+        const profileId = await ensurePsychologistProfileId(currentUser.id);
         if (!profileId) {
           if (!cancelled) setCurrentUserPlan("basico");
           return;

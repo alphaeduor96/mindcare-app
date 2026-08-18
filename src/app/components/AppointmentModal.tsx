@@ -24,7 +24,7 @@ import { CalendarIcon, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import { resolvePsychologistProfileId, sendAppEmail, supabaseRest } from "../../services/api";
+import { ensurePsychologistProfileId, sendAppEmail, supabaseRest } from "../../services/api";
 import {
   getAppointmentTimeSlots,
   getWorkingHours,
@@ -352,7 +352,7 @@ export function AppointmentModal({
 
     async function loadWorkingHoursFromDatabase() {
       try {
-        const profileId = await resolvePsychologistProfileId(storageUserId);
+        const profileId = await ensurePsychologistProfileId(storageUserId);
         if (!profileId) return;
 
         const rows = await supabaseRest<Array<{ horario_inicio: string; horario_cierre: string }>>(
@@ -489,7 +489,7 @@ export function AppointmentModal({
       setLoadingOptions(true);
 
       try {
-        const psychologistProfileId = await resolvePsychologistProfileId(
+        const psychologistProfileId = await ensurePsychologistProfileId(
           appointmentData?.psychologistId || currentPsychologistId
         );
         const normalizedAppointment = normalizeAppointmentData(appointmentData);
@@ -671,12 +671,12 @@ export function AppointmentModal({
     setSaving(true);
 
     try {
-      const psychologistProfileId = await resolvePsychologistProfileId(
+      const psychologistProfileId = await ensurePsychologistProfileId(
         appointmentData?.psychologistId || currentPsychologistId
       );
 
       if (!psychologistProfileId) {
-        toast.error("Tu usuario no tiene perfil de psicólogo vinculado.");
+        toast.error("No se pudo crear o encontrar tu perfil de psicólogo. Cierra sesión, vuelve a entrar e intenta de nuevo.");
         return;
       }
 
