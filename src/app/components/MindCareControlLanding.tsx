@@ -25,6 +25,7 @@ interface MindCareControlLandingProps {
   onEnterApp: () => void;
   onGoToEnterpriseLanding: () => void;
   onShowAuth: () => void;
+  onShowSignup: () => void;
   onApplyAsPsychologist: () => void;
   onOpenDirectory?: () => void;
 }
@@ -198,6 +199,7 @@ export function MindCareControlLanding({
   onEnterApp,
   onGoToEnterpriseLanding,
   onShowAuth,
+  onShowSignup,
   onApplyAsPsychologist,
   onOpenDirectory,
 }: MindCareControlLandingProps) {
@@ -264,7 +266,7 @@ export function MindCareControlLanding({
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <Button
-                  onClick={onShowAuth}
+                  onClick={onShowSignup}
                   size="lg"
                   className="bg-primary text-white hover:bg-primary/90 gap-2"
                 >
@@ -428,7 +430,7 @@ export function MindCareControlLanding({
                 de cada sesión.
               </p>
               <Button
-                onClick={onShowAuth}
+                onClick={onShowSignup}
                 size="lg"
                 className="bg-primary text-white hover:bg-primary/90 gap-2"
               >
@@ -505,7 +507,7 @@ export function MindCareControlLanding({
                   </ul>
 
                   <Button
-                    onClick={onShowAuth}
+                    onClick={onShowSignup}
                     className={`w-full ${
                       tier.popular
                         ? "bg-primary text-white hover:bg-primary/90"
@@ -632,7 +634,7 @@ export function MindCareControlLanding({
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
-              onClick={onShowAuth}
+              onClick={onShowSignup}
               size="lg"
               className="bg-white text-primary hover:bg-white/90 gap-2"
             >

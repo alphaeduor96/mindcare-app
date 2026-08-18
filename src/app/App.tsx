@@ -52,6 +52,7 @@ const patients: Array<{ id: string; name: string }> = [];
 
 type UserRole = "admin" | "psicologo" | "empresa" | "empleado";
 type AppointmentDefaultView = "calendar" | "list";
+type AuthInitialMode = "login" | "signup";
 type DataStatus = {
   status: "demo" | "partial";
   detail: string;
@@ -122,9 +123,15 @@ function getAppBaseUrl() {
   return "https://app.mindcare.mx";
 }
 
+function getAuthInitialModeFromLocation(): AuthInitialMode {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("auth") === "signup" ? "signup" : "login";
+}
+
 export default function App() {
   const [publicRoute, setPublicRoute] = useState<PublicRoute | null>(() => getPublicRouteFromLocation());
   const [showLogin, setShowLogin] = useState(false);
+  const [authInitialMode, setAuthInitialMode] = useState<AuthInitialMode>(() => getAuthInitialModeFromLocation());
   const [activeSection, setActiveSection] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -154,7 +161,7 @@ export default function App() {
 
   const navigateToPublicRoute = (route: PublicRoute | null, options: { replace?: boolean } = {}) => {
     const nextPath = route ? PUBLIC_ROUTE_PATHS[route] : "/";
-    if (normalizePath(window.location.pathname) !== nextPath) {
+    if (normalizePath(window.location.pathname) !== nextPath || window.location.search || window.location.hash) {
       const historyMethod = options.replace ? "replaceState" : "pushState";
       window.history[historyMethod]({}, "", nextPath);
     }
@@ -162,14 +169,15 @@ export default function App() {
     if (route) setShowLogin(false);
   };
 
-  const openAppLogin = () => {
+  const openAppLogin = (mode: AuthInitialMode = "login") => {
     const appBaseUrl = getAppBaseUrl();
 
     if (appBaseUrl !== window.location.origin) {
-      window.location.href = appBaseUrl;
+      window.location.href = mode === "signup" ? `${appBaseUrl}?auth=signup` : appBaseUrl;
       return;
     }
 
+    setAuthInitialMode(mode);
     navigateToPublicRoute(null);
     setShowLogin(true);
   };
@@ -301,6 +309,7 @@ export default function App() {
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     setShowLogin(false);
+    setAuthInitialMode("login");
     navigateToPublicRoute(null, { replace: true });
     setActiveSection("dashboard");
   };
@@ -598,6 +607,7 @@ export default function App() {
         <LoginPage
           onLogin={handleLogin}
           onGoToLanding={() => navigateToPublicRoute("psicologos")}
+          initialMode={authInitialMode}
         />
         <Toaster />
       </>
@@ -625,6 +635,7 @@ export default function App() {
           onEnterApp={openAppLogin}
           onGoToEnterpriseLanding={() => navigateToPublicRoute("empresas")}
           onShowAuth={openAppLogin}
+          onShowSignup={() => openAppLogin("signup")}
           onApplyAsPsychologist={() => navigateToPublicRoute("aplicar")}
           onOpenDirectory={openPublicDirectory}
         />
@@ -654,6 +665,7 @@ export default function App() {
         <LoginPage
           onLogin={handleLogin}
           onGoToLanding={() => navigateToPublicRoute("psicologos")}
+          initialMode={authInitialMode}
         />
         <Toaster />
       </>

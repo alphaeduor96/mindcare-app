@@ -4,20 +4,24 @@ import { format, startOfWeek, addDays, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
 import type { CalendarAppointment } from "./CalendarView";
 
+interface CalendarBlockView {
+  id: string;
+  title: string;
+  reason?: string | null;
+  date: Date;
+  hour: number;
+  minute: number;
+  duration: number;
+  color: string;
+}
+
 interface CalendarWeekViewProps {
   currentDate: Date;
   appointments: CalendarAppointment[];
-  blocks?: Array<{
-    id: string;
-    title: string;
-    date: Date;
-    hour: number;
-    minute: number;
-    duration: number;
-    color: string;
-  }>;
+  blocks?: CalendarBlockView[];
   onTimeSlotClick: (date: Date, hour: number) => void;
   onAppointmentClick: (appointment: CalendarAppointment) => void;
+  onBlockClick?: (block: CalendarBlockView) => void;
   onAppointmentResizeStart?: (appointment: CalendarAppointment, event: React.MouseEvent<HTMLDivElement>) => void;
   onAppointmentDragStart?: (appointment: CalendarAppointment) => void;
   onAppointmentDrop?: (date: Date, hour: number) => void;
@@ -43,6 +47,7 @@ export function CalendarWeekView({
   blocks = [],
   onTimeSlotClick,
   onAppointmentClick,
+  onBlockClick,
   onAppointmentResizeStart,
   onAppointmentDragStart,
   onAppointmentDrop,
@@ -156,11 +161,15 @@ export function CalendarWeekView({
                         return (
                           <div
                             key={block.id}
-                            className="absolute left-1 right-1 rounded p-2 text-xs text-white opacity-80 z-[5]"
+                            className="absolute left-1 right-1 rounded p-2 text-xs text-white opacity-80 z-[5] pointer-events-auto cursor-pointer hover:opacity-95 hover:shadow-lg transition"
                             style={{
                               top: `${topPosition}px`,
                               height: `${Math.max(height, 30)}px`,
                               backgroundColor: block.color,
+                            }}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onBlockClick?.(block);
                             }}
                           >
                             <p className="truncate font-medium">{block.title}</p>

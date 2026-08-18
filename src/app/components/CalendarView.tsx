@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIconLucide, List, Smartphone, Maximize2, Minimize2, Ban } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIconLucide, List, Smartphone, Maximize2, Minimize2, Ban, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import {
   Dialog,
@@ -267,6 +267,7 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
   const [draggedAppointment, setDraggedAppointment] = useState<CalendarAppointment | null>(null);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [blockSelectionMode, setBlockSelectionMode] = useState(false);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [blockSaving, setBlockSaving] = useState(false);
   const [blockForm, setBlockForm] = useState({
     title: "Horario bloqueado",
@@ -629,9 +630,15 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
     setCalendarView("day");
   };
 
+  const closeBlockModal = () => {
+    setBlockModalOpen(false);
+    setEditingBlockId(null);
+  };
+
   const openBlockModal = (date = currentDate, hour = 9) => {
     const startsAt = new Date(date);
     startsAt.setHours(hour, 0, 0, 0);
+    setEditingBlockId(null);
     setBlockForm({
       title: "Horario bloqueado",
       reason: "",
@@ -639,6 +646,24 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
       startTime: `${String(startsAt.getHours()).padStart(2, "0")}:00`,
       duration: "60",
       color: "#94A3B8",
+      repeatEvery: "none",
+      repeatCount: "1",
+    });
+    setBlockModalOpen(true);
+  };
+
+  const openBlockEditor = (block: CalendarBlock) => {
+    const startsAt = new Date(block.date);
+    startsAt.setHours(block.hour, block.minute, 0, 0);
+    setCurrentDate(startsAt);
+    setEditingBlockId(block.id);
+    setBlockForm({
+      title: block.title || "Horario bloqueado",
+      reason: block.reason || "",
+      date: format(startsAt, "yyyy-MM-dd"),
+      startTime: `${String(startsAt.getHours()).padStart(2, "0")}:${String(startsAt.getMinutes()).padStart(2, "0")}`,
+      duration: String(block.duration || 60),
+      color: block.color || "#94A3B8",
       repeatEvery: "none",
       repeatCount: "1",
     });
@@ -679,6 +704,28 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
       const [hour, minute] = blockForm.startTime.split(":").map(Number);
       const startsAt = new Date(year, month - 1, day, hour, minute || 0, 0, 0);
       const endsAt = new Date(startsAt.getTime() + Number(blockForm.duration || 60) * 60000);
+
+      const blockPayload = {
+        titulo: blockForm.title || "Horario bloqueado",
+        motivo: blockForm.reason || null,
+        inicia_at: startsAt.toISOString(),
+        termina_at: endsAt.toISOString(),
+        color: blockForm.color,
+      };
+
+      if (editingBlockId) {
+        await supabaseRest(`/bloqueos_horario?id=eq.${editingBlockId}`, {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify(blockPayload),
+        });
+
+        toast.success("Bloqueo actualizado");
+        closeBlockModal();
+        setReloadKey((key) => key + 1);
+        return;
+      }
+
       const occurrences = buildBlockOccurrences(startsAt, endsAt);
 
       await supabaseRest("/bloqueos_horario", {
@@ -686,20 +733,39 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
         headers: { Prefer: "return=representation" },
         body: JSON.stringify(occurrences.map((occurrence) => ({
           psicologo_id: profileId,
-          titulo: blockForm.title || "Horario bloqueado",
-          motivo: blockForm.reason || null,
+          titulo: blockPayload.titulo,
+          motivo: blockPayload.motivo,
           inicia_at: occurrence.startsAt.toISOString(),
           termina_at: occurrence.endsAt.toISOString(),
-          color: blockForm.color,
+          color: blockPayload.color,
         }))),
       });
 
       toast.success(occurrences.length > 1 ? `${occurrences.length} bloqueos creados` : "Horario bloqueado");
-      setBlockModalOpen(false);
+      closeBlockModal();
       setReloadKey((key) => key + 1);
     } catch (error) {
       console.error("Save block error:", error);
       toast.error("No se pudo bloquear el horario. Ejecuta primero CALENDAR_BLOCKS_SETUP.sql en Supabase.");
+    } finally {
+      setBlockSaving(false);
+    }
+  };
+
+  const handleDeleteBlock = async () => {
+    if (!editingBlockId) return;
+    setBlockSaving(true);
+
+    try {
+      await supabaseRest(`/bloqueos_horario?id=eq.${editingBlockId}`, {
+        method: "DELETE",
+      });
+      toast.success("Bloqueo eliminado");
+      closeBlockModal();
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      console.error("Delete block error:", error);
+      toast.error("No se pudo eliminar el bloqueo.");
     } finally {
       setBlockSaving(false);
     }
@@ -871,6 +937,7 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
               hours={hours}
               onTimeSlotClick={handleWeekTimeSlotClick}
               onAppointmentClick={handleAppointmentClick}
+              onBlockClick={openBlockEditor}
               onAppointmentResizeStart={handleAppointmentResizeStart}
               onAppointmentDragStart={setDraggedAppointment}
               onAppointmentDrop={handleAppointmentDrop}
@@ -935,11 +1002,15 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
                           return (
                             <div
                               key={block.id}
-                              className="absolute left-2 right-2 rounded-lg p-2 text-white shadow-sm opacity-80 pointer-events-none"
+                              className="absolute left-2 right-2 rounded-lg p-2 text-white shadow-sm opacity-80 pointer-events-auto cursor-pointer hover:opacity-95 hover:shadow-lg transition"
                               style={{
                                 top: `${topPosition}px`,
                                 height: `${Math.max(height, 35)}px`,
                                 backgroundColor: block.color,
+                              }}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openBlockEditor(block);
                               }}
                             >
                               <p className="text-xs font-medium truncate">{block.title}</p>
@@ -1143,12 +1214,20 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
         </DialogContent>
       </Dialog>
 
-      <Dialog open={blockModalOpen} onOpenChange={setBlockModalOpen}>
+      <Dialog
+        open={blockModalOpen}
+        onOpenChange={(open) => {
+          if (open) setBlockModalOpen(true);
+          else closeBlockModal();
+        }}
+      >
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Bloquear horario</DialogTitle>
+            <DialogTitle>{editingBlockId ? "Editar bloqueo" : "Bloquear horario"}</DialogTitle>
             <DialogDescription>
-              Marca espacios no disponibles por comida, supervisión, vacaciones u otros factores.
+              {editingBlockId
+                ? "Ajusta este espacio no disponible o elimínalo del calendario."
+                : "Marca espacios no disponibles por comida, supervisión, vacaciones u otros factores."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1205,6 +1284,7 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
                 <label className="text-sm text-foreground">Repetir</label>
                 <select
                   value={blockForm.repeatEvery}
+                  disabled={Boolean(editingBlockId)}
                   onChange={(event) =>
                     setBlockForm({
                       ...blockForm,
@@ -1212,7 +1292,7 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
                       repeatCount: event.target.value === "none" ? "1" : blockForm.repeatCount,
                     })
                   }
-                  className="h-10 w-full rounded-md border border-input bg-input-background px-3 text-sm text-foreground"
+                  className="h-10 w-full rounded-md border border-input bg-input-background px-3 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <option value="none">Sin repetir</option>
                   <option value="daily">Diario</option>
@@ -1226,11 +1306,16 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
                   min={1}
                   max={365}
                   value={blockForm.repeatCount}
-                  disabled={blockForm.repeatEvery === "none"}
+                  disabled={blockForm.repeatEvery === "none" || Boolean(editingBlockId)}
                   onChange={(event) => setBlockForm({ ...blockForm, repeatCount: event.target.value })}
                 />
               </div>
             </div>
+            {editingBlockId ? (
+              <p className="text-xs text-muted-foreground">
+                La repetición solo aplica al crear bloqueos nuevos. Para una serie existente, edita o elimina cada bloqueo visible.
+              </p>
+            ) : null}
             <div className="space-y-2">
               <label className="text-sm text-foreground">Motivo opcional</label>
               <Input
@@ -1239,13 +1324,23 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
                 placeholder="Detalle interno del bloqueo"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setBlockModalOpen(false)} disabled={blockSaving}>
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                {editingBlockId ? (
+                  <Button variant="outline" onClick={handleDeleteBlock} disabled={blockSaving} className="gap-2 text-destructive hover:text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeBlockModal} disabled={blockSaving}>
                 Cancelar
               </Button>
               <Button onClick={handleSaveBlock} disabled={blockSaving} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                {blockSaving ? "Guardando..." : "Guardar bloqueo"}
+                {blockSaving ? "Guardando..." : editingBlockId ? "Guardar cambios" : "Guardar bloqueo"}
               </Button>
+              </div>
             </div>
           </div>
         </DialogContent>

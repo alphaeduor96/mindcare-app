@@ -1,10 +1,10 @@
 import { publicAnonKey, supabaseUrl } from "../../services/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Label } from "./ui/label";
-import { ArrowLeft, Eye, EyeOff, LogIn, Loader2, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LogIn, Loader2, MailCheck, ShieldCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import mindcareIsotype from "../../assets/mindcare-isotype.png";
 import mindcareLoginLeftPanel from "../../assets/mindcare-login-left-panel.png";
@@ -12,6 +12,7 @@ import mindcareLoginLeftPanel from "../../assets/mindcare-login-left-panel.png";
 interface LoginPageProps {
   onLogin: (user: any) => void;
   onGoToLanding?: () => void;
+  initialMode?: "login" | "signup";
 }
 
 function isNetworkError(error: any) {
@@ -186,8 +187,8 @@ async function signupPsychologistWithSupabase(data: {
   };
 }
 
-export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+export function LoginPage({ onLogin, onGoToLanding, initialMode = "login" }: LoginPageProps) {
+  const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [signupData, setSignupData] = useState({
@@ -200,6 +201,17 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");
+
+  useEffect(() => {
+    setMode(initialMode);
+    setPendingConfirmationEmail("");
+  }, [initialMode]);
+
+  const switchMode = (nextMode: "login" | "signup") => {
+    setPendingConfirmationEmail("");
+    setMode(nextMode);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -269,8 +281,8 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
       const data = await signupPsychologistWithSupabase(signupData);
 
       if ("requiresEmailConfirmation" in data) {
-        toast.success(`Cuenta creada. Revisa ${data.email} para confirmar tu correo.`);
-        setMode("login");
+        toast.success(`Cuenta creada. Revisa ${data.email} para activar tu cuenta.`);
+        setPendingConfirmationEmail(data.email);
         setEmail(signupData.email);
         setPassword("");
         return;
@@ -338,19 +350,63 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
               <CardContent className="p-6 sm:p-8 md:p-10">
                 <div className="mb-6">
                   <p className="mb-3 text-base font-medium text-[#007F86]">
-                    {mode === "login" ? "Tu espacio profesional" : "Comienza con MindCare"}
+                    {pendingConfirmationEmail
+                      ? "Activa tu acceso"
+                      : mode === "login"
+                        ? "Tu espacio profesional"
+                        : "Comienza con MindCare"}
                   </p>
                   <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.01em] text-[#122C36] sm:text-[36px]">
-                    {mode === "login" ? "Bienvenido de nuevo" : "Crear cuenta gratis"}
+                    {pendingConfirmationEmail
+                      ? "Revisa tu correo"
+                      : mode === "login"
+                        ? "Bienvenido de nuevo"
+                        : "Crear cuenta gratis"}
                   </h1>
                   <p className="mt-2 text-base text-[#5F6F82]">
-                    {mode === "login"
-                      ? "Continúa donde dejaste tu trabajo."
-                      : "Alta gratuita para psicólogos. No necesitas tarjeta."}
+                    {pendingConfirmationEmail
+                      ? "Te enviamos un correo de confirmación para activar tu cuenta de MindCare Pro."
+                      : mode === "login"
+                        ? "Continúa donde dejaste tu trabajo."
+                        : "Alta gratuita para psicólogos. No necesitas tarjeta."}
                   </p>
                 </div>
 
-                {mode === "login" ? (
+                {pendingConfirmationEmail ? (
+                  <div className="space-y-5">
+                    <div className="rounded-2xl border border-[#BFE8E4] bg-[#F4FBFA] p-5">
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#DDF5F2] text-[#087780]">
+                        <MailCheck className="h-6 w-6" />
+                      </div>
+                      <h2 className="mb-2 text-xl font-semibold text-[#122C36]">
+                        Tu cuenta está casi lista
+                      </h2>
+                      <p className="text-sm leading-6 text-[#5F6F82]">
+                        Enviamos un correo a <span className="font-semibold text-[#122C36]">{pendingConfirmationEmail}</span>.
+                        Abre ese mensaje y da click en el botón para confirmar tu email. Después podrás iniciar sesión en MindCare Pro.
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-[#5F6F82]">
+                        Si no lo ves, revisa spam o promociones. El enlace puede tardar unos minutos en llegar.
+                      </p>
+                    </div>
+
+                    <Button
+                      type="button"
+                      className="h-12 w-full rounded-xl bg-[#34B9B3] text-base font-semibold text-white shadow-[0_18px_35px_rgba(52,185,179,0.25)] hover:bg-[#179E9B]"
+                      onClick={() => switchMode("login")}
+                    >
+                      Ya confirmé, iniciar sesión
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => switchMode("signup")}
+                      className="w-full text-center text-sm font-medium text-[#008D94] hover:text-[#006A70]"
+                    >
+                      Usar otro correo
+                    </button>
+                  </div>
+                ) : mode === "login" ? (
                   <form onSubmit={handleLogin} className="space-y-5">
                     <div className="space-y-2">
                       <Label htmlFor="email" className="text-sm text-[#132A33]">Correo electrónico</Label>
@@ -417,7 +473,7 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
                       ¿Eres psicólogo y aún no tienes cuenta?{" "}
                       <button
                         type="button"
-                        onClick={() => setMode("signup")}
+                        onClick={() => switchMode("signup")}
                         className="font-medium text-[#008D94] hover:text-[#006A70]"
                       >
                         Crear cuenta gratis
@@ -544,7 +600,7 @@ export function LoginPage({ onLogin, onGoToLanding }: LoginPageProps) {
                       ¿Ya tienes cuenta?{" "}
                       <button
                         type="button"
-                        onClick={() => setMode("login")}
+                        onClick={() => switchMode("login")}
                         className="font-medium text-[#008D94] hover:text-[#006A70]"
                       >
                         Iniciar sesión
