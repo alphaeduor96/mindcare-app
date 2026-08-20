@@ -9,8 +9,17 @@ import {
   XCircle,
   CheckCircle2,
   BookOpen,
+  ArrowRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 import {
   LineChart,
   Line,
@@ -107,6 +116,7 @@ interface DashboardProps {
     nombre: string;
     apellido: string;
   };
+  onOpenTodayCalendar?: () => void;
 }
 
 interface PsychologistProfile {
@@ -118,7 +128,12 @@ interface AppointmentRow {
   id: string;
   paciente_id: string;
   inicia_at: string;
+  termina_at?: string | null;
   estado: keyof typeof statusConfig;
+  modalidad?: "presencial" | "virtual";
+  consultorios?: {
+    nombre?: string | null;
+  } | null;
   costo_centavos?: number | null;
 }
 
@@ -161,8 +176,25 @@ function patientName(appointment: AppointmentRow, patientNames: Record<string, s
   return patientNames[appointment.paciente_id] || "Paciente sin nombre";
 }
 
-export function Dashboard({ currentUser }: DashboardProps) {
+function timeLabel(date: string) {
+  return new Date(date).toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function appointmentTimeRange(appointment: AppointmentRow) {
+  if (!appointment.termina_at) return timeLabel(appointment.inicia_at);
+  return `${timeLabel(appointment.inicia_at)} - ${timeLabel(appointment.termina_at)}`;
+}
+
+function modalityLabel(modality?: AppointmentRow["modalidad"]) {
+  return modality === "virtual" ? "En línea" : "Presencial";
+}
+
+export function Dashboard({ currentUser, onOpenTodayCalendar }: DashboardProps) {
   const [showTour, setShowTour] = useState(false);
+  const [todayDialogOpen, setTodayDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [psychologist, setPsychologist] = useState<PsychologistProfile | null>(null);
@@ -205,7 +237,7 @@ export function Dashboard({ currentUser }: DashboardProps) {
         const monthStart = startOfMonth(now);
         const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         const rows = await supabaseRest<AppointmentRow[]>(
-          `/citas?psicologo_id=eq.${profile.id}&inicia_at=gte.${monthStart.toISOString()}&inicia_at=lt.${nextMonthStart.toISOString()}&select=id,paciente_id,inicia_at,estado,costo_centavos&order=inicia_at.asc`
+          `/citas?psicologo_id=eq.${profile.id}&inicia_at=gte.${monthStart.toISOString()}&inicia_at=lt.${nextMonthStart.toISOString()}&select=id,paciente_id,inicia_at,termina_at,estado,modalidad,costo_centavos,consultorios(nombre)&order=inicia_at.asc`
         );
 
         const patientIds = Array.from(new Set(rows.map((row) => row.paciente_id)));
@@ -256,7 +288,7 @@ export function Dashboard({ currentUser }: DashboardProps) {
   const todayAppointments = appointments.filter((appointment) => {
     const startsAt = new Date(appointment.inicia_at);
     return startsAt >= todayStart && startsAt < tomorrowStart;
-  });
+  }).sort((first, second) => new Date(first.inicia_at).getTime() - new Date(second.inicia_at).getTime());
   const completedAppointments = appointments.filter((appointment) => appointment.estado === "completada");
   const monthlyIncome = appointments.reduce((total, appointment) => total + appointmentIncome(appointment), 0);
   const weeklyData = weekDays.map((day) => {
@@ -361,7 +393,22 @@ export function Dashboard({ currentUser }: DashboardProps) {
         {statsData.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <Card key={index} className="border-border hover:shadow-lg transition-shadow">
+            <Card
+              key={index}
+              className={`border-border hover:shadow-lg transition-shadow ${
+                stat.title === "Citas Hoy" ? "cursor-pointer focus-within:ring-2 focus-within:ring-primary/40" : ""
+              }`}
+              role={stat.title === "Citas Hoy" ? "button" : undefined}
+              tabIndex={stat.title === "Citas Hoy" ? 0 : undefined}
+              onClick={stat.title === "Citas Hoy" ? () => setTodayDialogOpen(true) : undefined}
+              onKeyDown={(event) => {
+                if (stat.title !== "Citas Hoy") return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setTodayDialogOpen(true);
+                }
+              }}
+            >
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="space-y-2 flex-1">
@@ -370,6 +417,9 @@ export function Dashboard({ currentUser }: DashboardProps) {
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <TrendingUp className="w-3 h-3" />
                       {stat.change}
+                      {stat.title === "Citas Hoy" && !loading && (
+                        <span className="ml-1 text-primary">Ver detalle</span>
+                      )}
                     </div>
                   </div>
                   <div className={`${stat.bgColor} ${stat.color} p-3 rounded-lg`}>
@@ -381,6 +431,61 @@ export function Dashboard({ currentUser }: DashboardProps) {
           );
         })}
       </div>
+
+      <Dialog open={todayDialogOpen} onOpenChange={setTodayDialogOpen}>
+        <DialogContent className="sm:max-w-[620px]">
+          <DialogHeader>
+            <DialogTitle>Citas de hoy</DialogTitle>
+            <DialogDescription>
+              Resumen de pacientes, horarios y modalidad para el día de hoy.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {loading ? (
+              <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                Cargando citas...
+              </div>
+            ) : todayAppointments.length === 0 ? (
+              <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                No tienes citas agendadas para hoy.
+              </div>
+            ) : (
+              todayAppointments.map((appointment) => (
+                <div key={appointment.id} className="flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium text-foreground">{patientName(appointment, patientNames)}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{appointmentTimeRange(appointment)}</p>
+                    {appointment.consultorios?.nombre && (
+                      <p className="mt-1 text-xs text-muted-foreground">{appointment.consultorios.nombre}</p>
+                    )}
+                  </div>
+                  <Badge className={appointment.modalidad === "virtual" ? "bg-[#4DD0E1] text-white" : "bg-primary text-primary-foreground"}>
+                    {modalityLabel(appointment.modalidad)}
+                  </Badge>
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setTodayDialogOpen(false)}>
+              Cerrar
+            </Button>
+            <Button
+              type="button"
+              className="gap-2"
+              onClick={() => {
+                setTodayDialogOpen(false);
+                onOpenTodayCalendar?.();
+              }}
+            >
+              Abrir en calendario
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

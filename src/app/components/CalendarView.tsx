@@ -46,6 +46,11 @@ interface CalendarViewProps {
   psychologists: Array<{ id: string; name: string }>;
   patients: Array<{ id: string; name: string }>;
   defaultTab?: "calendar" | "list";
+  openRequest?: {
+    key: number;
+    date: string;
+    view: "day" | "week" | "month";
+  } | null;
 }
 
 interface AppointmentRow {
@@ -246,8 +251,9 @@ function formatHourRange(hour: number) {
   return `${formatHour(hour)}-${formatHour(hour + 1)}`;
 }
 
-export function CalendarView({ currentPsychologistId, psychologists, patients, defaultTab = "calendar" }: CalendarViewProps) {
+export function CalendarView({ currentPsychologistId, psychologists, patients, defaultTab = "calendar", openRequest }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [activeTab, setActiveTab] = useState<"calendar" | "list">(defaultTab);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
@@ -289,6 +295,17 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
 
   const psychologistName = psychologists.find((psychologist) => psychologist.id === currentPsychologistId)?.name || "Psicólogo";
   const hours = useMemo(() => getCalendarHours(workingHours), [workingHours]);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
+
+  useEffect(() => {
+    if (!openRequest) return;
+    setActiveTab("calendar");
+    setCurrentDate(new Date(openRequest.date));
+    setCalendarView(openRequest.view);
+  }, [openRequest?.key]);
 
   useEffect(() => {
     resizeStateRef.current = resizeState;
@@ -872,7 +889,7 @@ export function CalendarView({ currentPsychologistId, psychologists, patients, d
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue={defaultTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "calendar" | "list")} className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="calendar" className="gap-2">
             <CalendarIconLucide className="w-4 h-4" />

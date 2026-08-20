@@ -59,6 +59,11 @@ type DataStatus = {
 };
 type PsychologistPlan = "basico" | "intermedio" | "pro" | "afiliado";
 type PublicRoute = "empresas" | "psicologos" | "directorio" | "aplicar";
+type CalendarOpenRequest = {
+  key: number;
+  date: string;
+  view: "day";
+};
 
 interface PsychologistSubscriptionRow {
   planes_suscripcion_psicologo?: {
@@ -133,6 +138,7 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState<AuthInitialMode>(() => getAuthInitialModeFromLocation());
   const [activeSection, setActiveSection] = useState("dashboard");
+  const [calendarOpenRequest, setCalendarOpenRequest] = useState<CalendarOpenRequest | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [appointmentDefaultView, setAppointmentDefaultView] = useState<AppointmentDefaultView>(() => {
@@ -329,6 +335,17 @@ export default function App() {
     localStorage.setItem("mindcare_appointment_default_view", view);
   };
 
+  const openTodayCalendarDay = () => {
+    setCalendarOpenRequest({
+      key: Date.now(),
+      date: new Date().toISOString(),
+      view: "day",
+    });
+    setAppointmentDefaultView("calendar");
+    setActiveSection("appointments");
+    setSidebarOpen(false);
+  };
+
   const openPublicDirectory = () => {
     navigateToPublicRoute("directorio");
   };
@@ -450,7 +467,7 @@ export default function App() {
         }
         if (currentUser.rol === "empresa") return <CompanyDashboard />;
         if (currentUser.rol === "empleado") return <EmployeeDashboard />;
-        return <Dashboard currentUser={currentUser} />;
+        return <Dashboard currentUser={currentUser} onOpenTodayCalendar={openTodayCalendarDay} />;
       case "appointments":
         if (currentUser.rol === "empleado") {
           return <EmployeeAppointments />;
@@ -461,6 +478,7 @@ export default function App() {
             psychologists={psychologists}
             patients={patients}
             defaultTab={appointmentDefaultView}
+            openRequest={calendarOpenRequest}
           />
         );
       case "video-sessions":
@@ -574,7 +592,7 @@ export default function App() {
         }
         if (currentUser.rol === "empresa") return <CompanyDashboard />;
         if (currentUser.rol === "empleado") return <EmployeeDashboard />;
-        return <Dashboard currentUser={currentUser} />;
+        return <Dashboard currentUser={currentUser} onOpenTodayCalendar={openTodayCalendarDay} />;
     }
   };
 
