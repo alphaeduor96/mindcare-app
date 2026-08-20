@@ -5,7 +5,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://api.mapbox.com; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://ssnfoheivrzhbfsrnswi.supabase.co https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://checkout.stripe.com https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com; worker-src 'self' blob:; child-src 'self' blob:; frame-src https://checkout.stripe.com https://js.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' https://api.mapbox.com; style-src 'self' 'unsafe-inline' https://api.mapbox.com; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://ssnfoheivrzhbfsrnswi.supabase.co https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://checkout.stripe.com https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com https://api.copomex.com https://api.zippopotam.us; worker-src 'self' blob:; child-src 'self' blob:; frame-src https://checkout.stripe.com https://js.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         },
         {
           "key": "X-Frame-Options",

@@ -135,8 +135,10 @@ type PostalCodeOption = {
 };
 
 type CopomexRow = {
+  error?: boolean;
+  error_message?: string | null;
   response?: {
-    asentamiento?: string;
+    asentamiento?: string | string[];
     municipio?: string;
     estado?: string;
     ciudad?: string;
@@ -458,15 +460,22 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
   };
 
   const loadColoniesFromCopomex = async (postalCode: string): Promise<PostalCodeOption[]> => {
-    const response = await fetch(`https://api.copomex.com/query/info_cp/${postalCode}?token=${encodeURIComponent(copomexToken)}`);
+    const response = await fetch(`https://api.copomex.com/query/info_cp/${postalCode}?type=simplified&token=${encodeURIComponent(copomexToken)}`);
     if (!response.ok) throw new Error("COPOMEX no disponible");
-    const data = await response.json() as CopomexRow[];
-    const rows = Array.isArray(data) ? data : [];
-    const options = rows.map((row) => ({
-      colonia: row.response?.asentamiento || "",
-      ciudad: row.response?.municipio || row.response?.ciudad || "",
-      estado: row.response?.estado || "",
-    }));
+    const data = await response.json() as CopomexRow | CopomexRow[];
+    const rows = Array.isArray(data) ? data : [data];
+    const options = rows.flatMap((row) => {
+      if (row.error) throw new Error(row.error_message || "COPOMEX no devolvió colonias");
+      const asentamientos = row.response?.asentamiento;
+      const colonias = Array.isArray(asentamientos) ? asentamientos : [asentamientos || ""];
+      const ciudad = row.response?.municipio || row.response?.ciudad || "";
+      const estado = row.response?.estado || "";
+      return colonias.map((colonia) => ({
+        colonia,
+        ciudad,
+        estado,
+      }));
+    });
     if (options.length === 0) throw new Error("Sin colonias para ese CP");
     return uniquePostalOptions(options);
   };
