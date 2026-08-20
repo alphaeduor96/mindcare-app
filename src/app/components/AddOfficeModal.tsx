@@ -145,6 +145,21 @@ type CopomexRow = {
   };
 };
 
+type SepomexLikeRow = string | {
+  d_asenta?: string;
+  asentamiento?: string;
+  asentamientos?: string[];
+  colonia?: string;
+  colonias?: string[];
+  nombre?: string;
+  d_mnpio?: string;
+  municipio?: string;
+  d_ciudad?: string;
+  ciudad?: string;
+  d_estado?: string;
+  estado?: string;
+};
+
 const OFFICE_PHOTOS_BUCKET = "consultorio-fotos";
 const MAP_CENTER = { lat: 20.6736, lng: -103.344 };
 
@@ -396,8 +411,9 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
     try {
       const loaders = [
         () => loadColoniesFromCopomex(postalCode),
-        ...(mapboxAccessToken ? [() => loadColoniesFromMapbox(postalCode)] : []),
-        () => loadColoniesFromOpenPostalCode(postalCode),
+        () => loadColoniesFromSepomexKurenn(postalCode),
+        () => loadColoniesFromTerio(postalCode),
+        () => loadColoniesFromNitroSepomex(postalCode),
       ];
       let uniqueOptions: PostalCodeOption[] = [];
 
@@ -435,27 +451,36 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
     }
   };
 
-  const loadColoniesFromMapbox = async (postalCode: string): Promise<PostalCodeOption[]> => {
-    const features = await fetchMapboxGeocode(postalCode, {
-      types: "postcode",
-      proximity: `${MAP_CENTER.lng},${MAP_CENTER.lat}`,
-      limit: "3",
-    });
+  const toRows = (value: unknown) => Array.isArray(value) ? value : value ? [value] : [];
 
-    return uniquePostalOptions(features.map((feature) => {
-      const coordinates = getMapboxCoordinates(feature);
-      const ciudad =
-        getMapboxContext(feature, "place") ||
-        getMapboxContext(feature, "locality") ||
-        getMapboxContext(feature, "district") ||
-        formData.municipio;
-      return {
-        colonia: getMapboxContext(feature, "neighborhood") || ciudad,
+  const sepomexRowsToOptions = (value: unknown) => {
+    const rows = toRows(value) as SepomexLikeRow[];
+    return uniquePostalOptions(rows.flatMap((row) => {
+      if (typeof row === "string") {
+        return [{
+          colonia: row,
+          ciudad: formData.municipio,
+          estado: formData.estado_region,
+        }];
+      }
+
+      const colonias = [
+        row.d_asenta,
+        row.asentamiento,
+        row.colonia,
+        row.nombre,
+        ...(Array.isArray(row.asentamientos) ? row.asentamientos : []),
+        ...(Array.isArray(row.colonias) ? row.colonias : []),
+      ].filter(Boolean) as string[];
+
+      const ciudad = row.d_ciudad || row.ciudad || row.d_mnpio || row.municipio || formData.municipio;
+      const estado = row.d_estado || row.estado || formData.estado_region;
+
+      return colonias.map((colonia) => ({
+        colonia,
         ciudad,
-        estado: getMapboxContext(feature, "region") || formData.estado_region,
-        latitud: coordinates?.latitud,
-        longitud: coordinates?.longitud,
-      };
+        estado,
+      }));
     }));
   };
 
@@ -480,18 +505,25 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
     return uniquePostalOptions(options);
   };
 
-  const loadColoniesFromOpenPostalCode = async (postalCode: string): Promise<PostalCodeOption[]> => {
-    const response = await fetch(`https://api.zippopotam.us/MX/${postalCode}`);
-    if (!response.ok) return [];
+  const loadColoniesFromSepomexKurenn = async (postalCode: string): Promise<PostalCodeOption[]> => {
+    const response = await fetch(`https://sepomex.kurenn.dev/api/v1/zip_codes?zip_code=${postalCode}&per_page=200`);
+    if (!response.ok) throw new Error("SEPOMEX no disponible");
     const data = await response.json();
-    const ciudad = data.places?.[0]?.["place name"] || data.places?.[0]?.["admin name2"] || "";
-    return uniquePostalOptions((data.places || []).map((place: any) => ({
-      colonia: place["place name"],
-      ciudad: place["admin name2"] || ciudad,
-      estado: place.state,
-      latitud: Number(place.latitude),
-      longitud: Number(place.longitude),
-    })));
+    return sepomexRowsToOptions(data.zip_codes || data.data || []);
+  };
+
+  const loadColoniesFromTerio = async (postalCode: string): Promise<PostalCodeOption[]> => {
+    const response = await fetch(`https://cp.terio.dev/v1/codigos-postales/${postalCode}`);
+    if (!response.ok) throw new Error("CP Terio no disponible");
+    const data = await response.json();
+    return sepomexRowsToOptions(data.asentamientos || data.colonias || data.postcodes || data.data?.postcodes || data.data || []);
+  };
+
+  const loadColoniesFromNitroSepomex = async (postalCode: string): Promise<PostalCodeOption[]> => {
+    const response = await fetch(`https://sepomex.nitrostudio.com.mx/api/20241009/cp/${postalCode}.json`);
+    if (!response.ok) throw new Error("Nitro SEPOMEX no disponible");
+    const data = await response.json();
+    return sepomexRowsToOptions(data.data?.postcodes || data.postcodes || data.data || []);
   };
 
   const searchLocation = async () => {
