@@ -372,6 +372,13 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
   const mapLng = Number(formData.longitud) || MAP_CENTER.lng;
   const openStreetMapSpan = 0.16 / Math.max(1, mapZoom - 10);
   const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - openStreetMapSpan}%2C${mapLat - openStreetMapSpan * 0.7}%2C${mapLng + openStreetMapSpan}%2C${mapLat + openStreetMapSpan * 0.7}&layer=mapnik&marker=${mapLat}%2C${mapLng}`;
+  const savedAddressSummary = [
+    formData.direccion.trim(),
+    formData.colonia.trim() ? `Colonia ${formData.colonia.trim()}` : "",
+    formData.municipio.trim(),
+    formData.estado_region.trim(),
+    formData.codigo_postal.trim() ? `CP ${formData.codigo_postal.trim()}` : "",
+  ].filter(Boolean).join(", ");
 
   const updateZoom = (direction: 1 | -1) => {
     setMapZoom((current) => Math.min(20, Math.max(12, current + direction)));
@@ -767,7 +774,7 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
   const renderMapCard = (expanded = false) => (
     <div
       className={`relative overflow-hidden rounded-2xl border border-border bg-muted cursor-crosshair ${
-        expanded ? "h-full min-h-0 flex-1" : "h-72"
+        expanded ? "h-full min-h-0 flex-1" : "h-80 md:h-96"
       }`}
       onPointerDown={!mapboxAccessToken ? updatePinFromPointer : undefined}
       onPointerMove={(event) => {
@@ -842,7 +849,7 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[760px] lg:max-w-[980px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar Consultorio" : "Registrar Nuevo Consultorio"}</DialogTitle>
           <DialogDescription>Complete la información del consultorio</DialogDescription>
@@ -879,8 +886,8 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+            <div className="space-y-2 lg:col-span-1">
               <Label htmlFor="codigo_postal">
                 Código Postal <span className="text-destructive">*</span>
               </Label>
@@ -900,7 +907,7 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
               />
               {loadingPostalCode && <p className="text-xs text-muted-foreground">Buscando colonias...</p>}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 lg:col-span-2">
               <Label htmlFor="colonia">
                 Colonia <span className="text-destructive">*</span>
               </Label>
@@ -943,7 +950,7 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
                 />
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 lg:col-span-1">
               <Label htmlFor="municipio">
                 Ciudad <span className="text-destructive">*</span>
               </Label>
@@ -956,7 +963,7 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
                 required
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 lg:col-span-2">
               <Label htmlFor="estado_region">
                 Estado <span className="text-destructive">*</span>
               </Label>
@@ -1005,47 +1012,59 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
             </div>
           </div>
 
-          <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-4">
+            <div className="flex flex-col gap-2">
               <div>
                 <Label>Ubicación para el mapa público</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Se arma con calle, CP, colonia, ciudad y estado. Después confirma la zona moviendo el pin.
+                <p className="text-sm text-muted-foreground mt-1">
+                  Se calcula con el domicilio capturado. Confirma la zona moviendo el pin o usando tu ubicación actual.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="shrink-0 gap-2"
-                  onClick={useCurrentLocation}
-                  disabled={saving || locatingCurrentPosition}
-                >
-                  <Crosshair className="h-4 w-4" />
-                  {locatingCurrentPosition ? "Ubicando..." : "Ubicación actual"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="shrink-0 gap-2"
-                  onClick={searchLocation}
-                  disabled={saving || searchingLocation}
-                >
-                  <Search className="h-4 w-4" />
-                  {searchingLocation ? "Buscando..." : "Buscar ubicación"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="shrink-0 gap-2"
-                  onClick={() => setMapExpanded(true)}
-                >
-                  <Maximize2 className="h-4 w-4" />
-                  Pantalla completa
-                </Button>
-              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-center gap-2"
+                onClick={useCurrentLocation}
+                disabled={saving || locatingCurrentPosition}
+              >
+                <Crosshair className="h-4 w-4" />
+                {locatingCurrentPosition ? "Ubicando..." : "Ubicación actual"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-center gap-2"
+                onClick={searchLocation}
+                disabled={saving || searchingLocation}
+              >
+                <Search className="h-4 w-4" />
+                {searchingLocation ? "Buscando..." : "Buscar ubicación"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-center gap-2"
+                onClick={() => setMapExpanded(true)}
+              >
+                <Maximize2 className="h-4 w-4" />
+                Pantalla completa
+              </Button>
             </div>
             {renderMapCard()}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="descripcion">Observaciones de acceso</Label>
+            <Textarea
+              id="descripcion"
+              placeholder="Ej: Torre de departamentos, coto privado, decir en seguridad que vienes al consultorio 204..."
+              className="bg-input-background min-h-[92px]"
+              value={formData.descripcion}
+              onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+              disabled={saving}
+            />
           </div>
 
           <div className="space-y-2">
@@ -1125,16 +1144,16 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="descripcion">Descripción / Notas</Label>
-            <Textarea
-              id="descripcion"
-              placeholder="Indicaciones de acceso, referencias o detalles del espacio..."
-              className="bg-input-background min-h-[80px]"
-              value={formData.descripcion}
-              onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-              disabled={saving}
-            />
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <p className="text-sm font-semibold text-foreground">Domicilio guardado es:</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {savedAddressSummary || "Completa calle, colonia, ciudad, estado y código postal para ver el resumen."}
+            </p>
+            {formData.descripcion.trim() && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">Observaciones:</span> {formData.descripcion.trim()}
+              </p>
+            )}
           </div>
 
           <DialogFooter>
