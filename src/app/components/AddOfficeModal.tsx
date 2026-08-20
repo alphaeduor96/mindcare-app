@@ -21,7 +21,7 @@ import { Textarea } from "./ui/textarea";
 import { toast } from "sonner";
 import { Checkbox } from "./ui/checkbox";
 import { copomexToken, getAuthToken, mapboxAccessToken, publicAnonKey, resolvePsychologistProfileId, supabaseRest, supabaseUrl } from "../../services/api";
-import { ImagePlus, MapPin, Maximize2, Minus, Plus, Search, X } from "lucide-react";
+import { Crosshair, ImagePlus, MapPin, Maximize2, Minus, Plus, Search, X } from "lucide-react";
 
 export interface OfficeRow {
   id: string;
@@ -317,6 +317,7 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
   const [formData, setFormData] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [searchingLocation, setSearchingLocation] = useState(false);
+  const [locatingCurrentPosition, setLocatingCurrentPosition] = useState(false);
   const [loadingPostalCode, setLoadingPostalCode] = useState(false);
   const [mapZoom, setMapZoom] = useState(16);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -374,6 +375,40 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
 
   const updateZoom = (direction: 1 | -1) => {
     setMapZoom((current) => Math.min(20, Math.max(12, current + direction)));
+  };
+
+  const useCurrentLocation = () => {
+    if (!("geolocation" in navigator)) {
+      toast.error("Tu navegador no permite obtener la ubicación actual.");
+      return;
+    }
+
+    setLocatingCurrentPosition(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const accuracy = Math.round(position.coords.accuracy || 0);
+        setFormData((current) => ({
+          ...current,
+          latitud: Number(position.coords.latitude.toFixed(6)),
+          longitud: Number(position.coords.longitude.toFixed(6)),
+        }));
+        toast.success(accuracy ? `Pin actualizado con tu ubicación actual (${accuracy} m aprox.).` : "Pin actualizado con tu ubicación actual.");
+        setLocatingCurrentPosition(false);
+      },
+      (error) => {
+        const message =
+          error.code === error.PERMISSION_DENIED
+            ? "Permite acceso a ubicación en el navegador para usar esta opción."
+            : "No se pudo obtener tu ubicación actual.";
+        toast.error(message);
+        setLocatingCurrentPosition(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0,
+      }
+    );
   };
 
   const getMapboxContext = (feature: MapboxFeature | undefined, prefix: string) =>
@@ -979,6 +1014,16 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0 gap-2"
+                  onClick={useCurrentLocation}
+                  disabled={saving || locatingCurrentPosition}
+                >
+                  <Crosshair className="h-4 w-4" />
+                  {locatingCurrentPosition ? "Ubicando..." : "Ubicación actual"}
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
