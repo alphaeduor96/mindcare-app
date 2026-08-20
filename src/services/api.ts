@@ -1,8 +1,8 @@
-import { copomexToken, googleMapsApiKey, publicAnonKey, supabaseFunctionsBaseUrl, supabaseUrl } from "../../utils/supabase/info";
+import { copomexToken, mapboxAccessToken, publicAnonKey, supabaseFunctionsBaseUrl, supabaseUrl } from "../../utils/supabase/info";
 
 export { publicAnonKey, supabaseUrl };
 export { supabaseFunctionsBaseUrl };
-export { copomexToken, googleMapsApiKey };
+export { copomexToken, mapboxAccessToken };
 
 export const API_BASE = `${supabaseFunctionsBaseUrl}/make-server-0e77298f`;
 export const REST_BASE = `${supabaseUrl}/rest/v1`;

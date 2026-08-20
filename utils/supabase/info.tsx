@@ -19,5 +19,5 @@ export const supabaseFunctionsBaseUrl =
   `${supabaseUrl}/functions/v1`;
 export const projectId = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1] || "";
 export const publicAnonKey = requiredPublicEnv("VITE_SUPABASE_ANON_KEY");
-export const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+export const mapboxAccessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || "";
 export const copomexToken = import.meta.env.VITE_COPOMEX_TOKEN || "pruebas";

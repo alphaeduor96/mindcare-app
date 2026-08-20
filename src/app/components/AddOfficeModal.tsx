@@ -20,7 +20,7 @@ import {
 import { Textarea } from "./ui/textarea";
 import { toast } from "sonner";
 import { Checkbox } from "./ui/checkbox";
-import { copomexToken, getAuthToken, googleMapsApiKey, publicAnonKey, resolvePsychologistProfileId, supabaseRest, supabaseUrl } from "../../services/api";
+import { copomexToken, getAuthToken, mapboxAccessToken, publicAnonKey, resolvePsychologistProfileId, supabaseRest, supabaseUrl } from "../../services/api";
 import { ImagePlus, MapPin, Maximize2, Minus, Plus, Search, X } from "lucide-react";
 
 export interface OfficeRow {
@@ -113,13 +113,16 @@ type LocationResult = {
   };
 };
 
-type GoogleGeocodeResult = {
-  geometry?: { location?: { lat: number; lng: number } };
-  postcode_localities?: string[];
-  address_components?: Array<{
-    long_name: string;
-    short_name: string;
-    types: string[];
+type MapboxFeature = {
+  id?: string;
+  text?: string;
+  place_name?: string;
+  center?: [number, number];
+  geometry?: { coordinates?: [number, number] };
+  context?: Array<{
+    id?: string;
+    text?: string;
+    short_code?: string;
   }>;
 };
 
@@ -145,35 +148,43 @@ const MAP_CENTER = { lat: 20.6736, lng: -103.344 };
 
 declare global {
   interface Window {
-    google?: any;
+    mapboxgl?: any;
   }
 }
 
-let googleMapsLoader: Promise<void> | null = null;
+let mapboxLoader: Promise<void> | null = null;
 
-function loadGoogleMapsScript() {
-  if (!googleMapsApiKey || window.google?.maps) return Promise.resolve();
-  if (googleMapsLoader) return googleMapsLoader;
+function loadMapboxScript() {
+  if (!mapboxAccessToken || window.mapboxgl) return Promise.resolve();
+  if (mapboxLoader) return mapboxLoader;
 
-  googleMapsLoader = new Promise((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>("script[data-mindcare-google-maps]");
+  mapboxLoader = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>("script[data-mindcare-mapbox]");
     if (existingScript) {
       existingScript.addEventListener("load", () => resolve());
-      existingScript.addEventListener("error", () => reject(new Error("No se pudo cargar Google Maps.")));
+      existingScript.addEventListener("error", () => reject(new Error("No se pudo cargar Mapbox.")));
       return;
     }
 
+    if (!document.querySelector<HTMLLinkElement>("link[data-mindcare-mapbox-css]")) {
+      const link = document.createElement("link");
+      link.dataset.mindcareMapboxCss = "true";
+      link.rel = "stylesheet";
+      link.href = "https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css";
+      document.head.appendChild(link);
+    }
+
     const script = document.createElement("script");
-    script.dataset.mindcareGoogleMaps = "true";
+    script.dataset.mindcareMapbox = "true";
     script.async = true;
     script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&language=es-419&region=MX`;
+    script.src = "https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js";
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("No se pudo cargar Google Maps."));
+    script.onerror = () => reject(new Error("No se pudo cargar Mapbox."));
     document.head.appendChild(script);
   });
 
-  return googleMapsLoader;
+  return mapboxLoader;
 }
 
 function uniquePostalOptions(options: PostalCodeOption[]) {
@@ -212,7 +223,7 @@ function isLikelyPostalText(value = "") {
   return true;
 }
 
-function GoogleOfficeMap({
+function MapboxOfficeMap({
   lat,
   lng,
   expanded,
@@ -230,55 +241,56 @@ function GoogleOfficeMap({
   useEffect(() => {
     let mounted = true;
 
-    loadGoogleMapsScript()
+    loadMapboxScript()
       .then(() => {
-        if (!mounted || !mapNodeRef.current || !window.google?.maps) return;
+        if (!mounted || !mapNodeRef.current || !window.mapboxgl) return;
 
-        const position = { lat, lng };
-        mapRef.current = new window.google.maps.Map(mapNodeRef.current, {
+        window.mapboxgl.accessToken = mapboxAccessToken;
+        const position = [lng, lat];
+        mapRef.current = new window.mapboxgl.Map({
+          container: mapNodeRef.current,
+          style: "mapbox://styles/mapbox/streets-v12",
           center: position,
           zoom: 16,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: true,
-          zoomControl: true,
-          gestureHandling: "greedy",
         });
 
-        markerRef.current = new window.google.maps.Marker({
-          position,
-          map: mapRef.current,
+        mapRef.current.addControl(new window.mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+
+        markerRef.current = new window.mapboxgl.Marker({
           draggable: true,
-          title: "Ubicación aproximada del consultorio",
-        });
+        })
+          .setLngLat(position)
+          .addTo(mapRef.current);
 
-        mapRef.current.addListener("click", (event: any) => {
-          if (!event.latLng) return;
-          const next = { lat: event.latLng.lat(), lng: event.latLng.lng() };
-          markerRef.current.setPosition(next);
+        mapRef.current.on("click", (event: any) => {
+          const next = { lat: event.lngLat.lat, lng: event.lngLat.lng };
+          markerRef.current.setLngLat([next.lng, next.lat]);
           onChange(next);
         });
 
-        markerRef.current.addListener("dragend", () => {
-          const position = markerRef.current.getPosition();
+        markerRef.current.on("dragend", () => {
+          const position = markerRef.current.getLngLat();
           if (!position) return;
-          onChange({ lat: position.lat(), lng: position.lng() });
+          onChange({ lat: position.lat, lng: position.lng });
         });
       })
       .catch((error) => {
         console.error(error);
-        toast.error("No se pudo cargar Google Maps.");
+        toast.error("No se pudo cargar Mapbox.");
       });
 
     return () => {
       mounted = false;
+      mapRef.current?.remove?.();
+      mapRef.current = null;
+      markerRef.current = null;
     };
   }, [expanded]);
 
   useEffect(() => {
-    const next = { lat, lng };
+    const next = [lng, lat];
     if (mapRef.current) mapRef.current.setCenter(next);
-    if (markerRef.current) markerRef.current.setPosition(next);
+    if (markerRef.current) markerRef.current.setLngLat(next);
   }, [lat, lng]);
 
   return <div ref={mapNodeRef} className="h-full w-full" />;
@@ -341,23 +353,48 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
   const mapLat = Number(formData.latitud) || MAP_CENTER.lat;
   const mapLng = Number(formData.longitud) || MAP_CENTER.lng;
   const openStreetMapSpan = 0.16 / Math.max(1, mapZoom - 10);
-  const mapSrc = googleMapsApiKey
-    ? `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${mapLat},${mapLng}&zoom=${mapZoom}`
-    : `https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - openStreetMapSpan}%2C${mapLat - openStreetMapSpan * 0.7}%2C${mapLng + openStreetMapSpan}%2C${mapLat + openStreetMapSpan * 0.7}&layer=mapnik&marker=${mapLat}%2C${mapLng}`;
+  const mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - openStreetMapSpan}%2C${mapLat - openStreetMapSpan * 0.7}%2C${mapLng + openStreetMapSpan}%2C${mapLat + openStreetMapSpan * 0.7}&layer=mapnik&marker=${mapLat}%2C${mapLng}`;
 
   const updateZoom = (direction: 1 | -1) => {
     setMapZoom((current) => Math.min(20, Math.max(12, current + direction)));
   };
 
-  const getAddressComponent = (components: GoogleGeocodeResult["address_components"], type: string) =>
-    components?.find((item) => item.types.includes(type))?.long_name || "";
+  const getMapboxContext = (feature: MapboxFeature | undefined, prefix: string) =>
+    feature?.context?.find((item) => item.id?.startsWith(`${prefix}.`))?.text || "";
+
+  const getMapboxCoordinates = (feature: MapboxFeature | undefined) => {
+    const coordinates = feature?.center || feature?.geometry?.coordinates;
+    if (!coordinates || coordinates.length < 2) return null;
+    return {
+      latitud: Number(Number(coordinates[1]).toFixed(6)),
+      longitud: Number(Number(coordinates[0]).toFixed(6)),
+    };
+  };
+
+  const fetchMapboxGeocode = async (query: string, params: Record<string, string> = {}) => {
+    if (!mapboxAccessToken) return [];
+
+    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json`);
+    url.searchParams.set("access_token", mapboxAccessToken);
+    url.searchParams.set("country", "mx");
+    url.searchParams.set("language", "es");
+    url.searchParams.set("limit", params.limit || "1");
+    Object.entries(params).forEach(([key, value]) => {
+      if (key !== "limit" && value) url.searchParams.set(key, value);
+    });
+
+    const response = await fetch(url.toString());
+    if (!response.ok) throw new Error("Mapbox no disponible");
+    const data = await response.json();
+    return (data.features || []) as MapboxFeature[];
+  };
 
   const loadColoniesByPostalCode = async (postalCode: string) => {
     setLoadingPostalCode(true);
     try {
       const loaders = [
         () => loadColoniesFromCopomex(postalCode),
-        ...(googleMapsApiKey ? [() => loadColoniesFromGoogle(postalCode)] : []),
+        ...(mapboxAccessToken ? [() => loadColoniesFromMapbox(postalCode)] : []),
         () => loadColoniesFromOpenPostalCode(postalCode),
       ];
       let uniqueOptions: PostalCodeOption[] = [];
@@ -396,35 +433,28 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
     }
   };
 
-  const loadColoniesFromGoogle = async (postalCode: string): Promise<PostalCodeOption[]> => {
-    const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-    url.searchParams.set("address", postalCode);
-    url.searchParams.set("components", `country:MX|postal_code:${postalCode}`);
-    url.searchParams.set("region", "mx");
-    url.searchParams.set("language", "es-419");
-    url.searchParams.set("key", googleMapsApiKey);
+  const loadColoniesFromMapbox = async (postalCode: string): Promise<PostalCodeOption[]> => {
+    const features = await fetchMapboxGeocode(postalCode, {
+      types: "postcode",
+      proximity: `${MAP_CENTER.lng},${MAP_CENTER.lat}`,
+      limit: "3",
+    });
 
-    const response = await fetch(url.toString());
-    const data = await response.json();
-    const result = data.results?.[0] as GoogleGeocodeResult | undefined;
-    if (!result) return [];
-
-    const ciudad =
-      getAddressComponent(result.address_components, "locality") ||
-      getAddressComponent(result.address_components, "postal_town") ||
-      getAddressComponent(result.address_components, "administrative_area_level_2");
-    const estado = getAddressComponent(result.address_components, "administrative_area_level_1");
-    const location = result.geometry?.location;
-
-    return uniquePostalOptions((result.postcode_localities || [getAddressComponent(result.address_components, "sublocality") || ciudad])
-      .filter(Boolean)
-      .map((colonia) => ({
-        colonia,
+    return uniquePostalOptions(features.map((feature) => {
+      const coordinates = getMapboxCoordinates(feature);
+      const ciudad =
+        getMapboxContext(feature, "place") ||
+        getMapboxContext(feature, "locality") ||
+        getMapboxContext(feature, "district") ||
+        formData.municipio;
+      return {
+        colonia: getMapboxContext(feature, "neighborhood") || ciudad,
         ciudad,
-        estado,
-        latitud: location?.lat,
-        longitud: location?.lng,
-      })));
+        estado: getMapboxContext(feature, "region") || formData.estado_region,
+        latitud: coordinates?.latitud,
+        longitud: coordinates?.longitud,
+      };
+    }));
   };
 
   const loadColoniesFromCopomex = async (postalCode: string): Promise<PostalCodeOption[]> => {
@@ -472,19 +502,16 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
 
     setSearchingLocation(true);
     try {
-      if (googleMapsApiKey) {
-        const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-        url.searchParams.set("address", query);
-        url.searchParams.set("components", `country:MX|postal_code:${formData.codigo_postal.trim()}`);
-        url.searchParams.set("region", "mx");
-        url.searchParams.set("language", "es-419");
-        url.searchParams.set("key", googleMapsApiKey);
+      if (mapboxAccessToken) {
+        const features = await fetchMapboxGeocode(query, {
+          autocomplete: "false",
+          proximity: `${MAP_CENTER.lng},${MAP_CENTER.lat}`,
+          limit: "1",
+        });
+        const result = features[0];
+        const coordinates = getMapboxCoordinates(result);
 
-        const response = await fetch(url.toString());
-        const data = await response.json();
-        const result = data.results?.[0] as GoogleGeocodeResult | undefined;
-
-        if (!result?.geometry?.location) {
+        if (!coordinates) {
           toast.error("No encontré esa dirección. Intenta con calle, colonia y ciudad.");
           return;
         }
@@ -492,13 +519,14 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
         setFormData((current) => ({
           ...current,
           municipio:
-            getAddressComponent(result.address_components, "locality") ||
-            getAddressComponent(result.address_components, "postal_town") ||
-            getAddressComponent(result.address_components, "administrative_area_level_2") ||
+            getMapboxContext(result, "place") ||
+            getMapboxContext(result, "locality") ||
+            getMapboxContext(result, "district") ||
             current.municipio,
-          estado_region: getAddressComponent(result.address_components, "administrative_area_level_1") || current.estado_region,
-          latitud: Number(result.geometry.location.lat.toFixed(6)),
-          longitud: Number(result.geometry.location.lng.toFixed(6)),
+          estado_region: getMapboxContext(result, "region") || current.estado_region,
+          codigo_postal: getMapboxContext(result, "postcode") || current.codigo_postal,
+          colonia: getMapboxContext(result, "neighborhood") || current.colonia,
+          ...coordinates,
         }));
         toast.success("Ubicación encontrada. Ajusta el pin si hace falta.");
         return;
@@ -665,13 +693,13 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
       className={`relative overflow-hidden rounded-2xl border border-border bg-muted cursor-crosshair ${
         expanded ? "h-full min-h-0 flex-1" : "h-72"
       }`}
-      onPointerDown={!googleMapsApiKey ? updatePinFromPointer : undefined}
+      onPointerDown={!mapboxAccessToken ? updatePinFromPointer : undefined}
       onPointerMove={(event) => {
-        if (!googleMapsApiKey && event.buttons === 1) updatePinFromPointer(event);
+        if (!mapboxAccessToken && event.buttons === 1) updatePinFromPointer(event);
       }}
     >
-      {googleMapsApiKey ? (
-        <GoogleOfficeMap
+      {mapboxAccessToken ? (
+        <MapboxOfficeMap
           lat={mapLat}
           lng={mapLng}
           expanded={expanded}
@@ -730,7 +758,7 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
         </>
       )}
       <div className="absolute left-3 bottom-3 rounded-xl bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm">
-        {googleMapsApiKey ? "Arrastra el pin o toca el mapa para ajustar" : `Toca el mapa para mover el pin · Zoom ${mapZoom}`}
+        {mapboxAccessToken ? "Arrastra el pin o toca el mapa para ajustar" : `Toca el mapa para mover el pin · Zoom ${mapZoom}`}
       </div>
     </div>
   );
@@ -1043,7 +1071,7 @@ export function AddOfficeModal({ isOpen, onClose, office, currentPsychologistId,
         <DialogHeader>
           <DialogTitle>Confirmar ubicación del consultorio</DialogTitle>
           <DialogDescription>
-            Acerca, aleja y arrastra el marcador como en Google Maps.
+            Acerca, aleja y arrastra el marcador para confirmar la ubicación exacta.
           </DialogDescription>
         </DialogHeader>
         {renderMapCard(true)}
