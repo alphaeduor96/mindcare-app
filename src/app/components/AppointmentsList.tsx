@@ -268,6 +268,54 @@ function monthLabel(key: string) {
   });
 }
 
+function dateKey(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function parseDateKey(key: string) {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function weekRange(date: Date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = start.getDay();
+  const mondayOffset = (day + 6) % 7;
+  start.setDate(start.getDate() - mondayOffset);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return { start, end };
+}
+
+function weekKey(date: string) {
+  const { start } = weekRange(new Date(date));
+  return dateKey(start);
+}
+
+function weekLabel(key: string) {
+  const start = parseDateKey(key);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  const startLabel = start.toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: start.getMonth() === end.getMonth() ? undefined : "short",
+  });
+  const endLabel = end.toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  return `${startLabel} - ${endLabel}`;
+}
+
 export function AppointmentsList({
   currentPsychologistId,
   psychologists,
@@ -277,6 +325,7 @@ export function AppointmentsList({
   const [filter, setFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
+  const [weekFilter, setWeekFilter] = useState("all");
   const [patientFilter, setPatientFilter] = useState("");
   const [patientSearch, setPatientSearch] = useState("");
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
@@ -334,12 +383,31 @@ export function AppointmentsList({
     return keys.sort((first, second) => second.localeCompare(first));
   }, [appointments]);
 
-  const filteredAppointments = useMemo(
+  const monthFilteredAppointments = useMemo(
     () =>
       monthFilter === "all"
         ? appointments
         : appointments.filter((appointment) => monthKey(appointment.date) === monthFilter),
     [appointments, monthFilter]
+  );
+
+  const weekOptions = useMemo(() => {
+    const keys = Array.from(new Set(monthFilteredAppointments.map((appointment) => weekKey(appointment.date))));
+    return keys.sort((first, second) => second.localeCompare(first));
+  }, [monthFilteredAppointments]);
+
+  useEffect(() => {
+    if (weekFilter !== "all" && !weekOptions.includes(weekFilter)) {
+      setWeekFilter("all");
+    }
+  }, [weekFilter, weekOptions]);
+
+  const filteredAppointments = useMemo(
+    () =>
+      weekFilter === "all"
+        ? monthFilteredAppointments
+        : monthFilteredAppointments.filter((appointment) => weekKey(appointment.date) === weekFilter),
+    [monthFilteredAppointments, weekFilter]
   );
 
   const patientFilterItems = useMemo(() => {
@@ -566,7 +634,13 @@ export function AppointmentsList({
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <span className="text-sm text-muted-foreground">Mes:</span>
-              <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <Select
+                value={monthFilter}
+                onValueChange={(value) => {
+                  setMonthFilter(value);
+                  setWeekFilter("all");
+                }}
+              >
                 <SelectTrigger className="w-full sm:w-[220px] bg-input-background">
                   <SelectValue placeholder="Seleccionar mes" />
                 </SelectTrigger>
@@ -575,6 +649,22 @@ export function AppointmentsList({
                   {monthOptions.map((key) => (
                     <SelectItem key={key} value={key} className="capitalize">
                       {monthLabel(key)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <span className="text-sm text-muted-foreground">Semana:</span>
+              <Select value={weekFilter} onValueChange={setWeekFilter}>
+                <SelectTrigger className="w-full sm:w-[220px] bg-input-background">
+                  <SelectValue placeholder="Seleccionar semana" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las semanas</SelectItem>
+                  {weekOptions.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {weekLabel(key)}
                     </SelectItem>
                   ))}
                 </SelectContent>
